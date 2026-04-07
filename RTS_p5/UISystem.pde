@@ -16,6 +16,7 @@ class UISystem {
   }
 
   void render(GameState state) {
+    textAlign(LEFT, TOP);
     noStroke();
     fill(34, 30, 22);
     rect(sidePanelX, 0, sidePanelW, viewportH);
@@ -27,37 +28,67 @@ class UISystem {
     minimap.render(state.map, state.camera, state.units, state.buildings);
 
     int panelY = 220;
+    int contentX = sidePanelX + 18;
+    int contentW = sidePanelW - 56;
+    int y = panelY + 12;
+    int lineH = 20;
     fill(40, 36, 28);
     rect(sidePanelX + 10, panelY, sidePanelW - 20, viewportH - panelY - 10);
     fill(230);
     textSize(13);
-    text("Faction: " + state.activeFaction, sidePanelX + 18, panelY + 10);
-    text("Credits: " + state.resources.credits, sidePanelX + 18, panelY + 30);
-    text("Selected: " + state.selectedUnits.size(), sidePanelX + 18, panelY + 48);
-    text("Build Mode [B]: " + (state.buildSystem.active ? "ON" : "OFF"), sidePanelX + 18, panelY + 66);
-    text("Build Queue: " + state.buildSystem.queuedCount(), sidePanelX + 18, panelY + 84);
-    text("Last Order: " + state.orderLabel, sidePanelX + 18, panelY + 96);
-    text("A-Mode: " + (state.attackMoveArmed ? "ARMED" : "OFF"), sidePanelX + 18, panelY + 108);
-    text("CursorLock[L]: " + (state.hardCursorLock ? "ON" : "OFF"), sidePanelX + 18, panelY + 120);
-    text("Paths[P]: " + (state.debugShowPaths ? "ON" : "OFF"), sidePanelX + 18, panelY + 132);
-    text("LMB: Select / Place", sidePanelX + 18, panelY + 148);
-    text("RMB: Move / Attack", sidePanelX + 18, panelY + 166);
-    text("A + Click: AttackMove", sidePanelX + 18, panelY + 184);
+    text("Faction: " + state.activeFaction, contentX, y);
+    y += lineH;
+    text("Credits: " + state.resources.credits, contentX, y);
+    y += lineH;
+    text("Selected: " + state.selectedUnits.size(), contentX, y);
+    y += lineH;
+    if (state.selectedUnits.size() == 1) {
+      Unit su = state.selectedUnits.get(0);
+      if (su.faction == Faction.NEUTRAL) {
+        fill(255, 200, 140);
+        text("AI [NEUTRAL]: " + su.aiDebugStateLabel(), contentX, y);
+        y += lineH;
+        fill(230);
+      }
+    }
+    text("Build Mode [B]: " + (state.buildSystem.active ? "ON" : "OFF"), contentX, y);
+    y += lineH;
+    text("Build Queue: " + state.buildSystem.queuedCount(), contentX, y);
+    y += lineH;
+    text("Last Order: " + state.orderLabel, contentX, y);
+    y += lineH;
+    text("A-Mode: " + (state.attackMoveArmed ? "ARMED" : "OFF"), contentX, y);
+    y += lineH;
+    text("CursorLock [L]: " + (state.hardCursorLock ? "ON" : "OFF"), contentX, y);
+    y += lineH;
+    text("Paths [P]: " + (state.debugShowPaths ? "ON" : "OFF"), contentX, y);
+    y += lineH + 6;
+
+    fill(200);
+    text("LMB: Select / Place", contentX, y);
+    y += lineH;
+    text("RMB: Move / Attack", contentX, y);
+    y += lineH;
+    text("A + Click: AttackMove", contentX, y);
+    y += lineH + 8;
 
     float p = state.buildSystem.currentProgress01();
     if (p > 0) {
       fill(20, 20, 20);
-      rect(sidePanelX + 18, panelY + 200, sidePanelW - 56, 10);
+      rect(contentX, y, contentW, 10);
       fill(80, 230, 110);
-      rect(sidePanelX + 18, panelY + 200, (sidePanelW - 56) * p, 10);
+      rect(contentX, y, contentW * p, 10);
       fill(220);
-      text("Constructing: " + int(p * 100) + "%", sidePanelX + 18, panelY + 214);
+      y += 14;
+      text("Constructing: " + int(p * 100) + "%", contentX, y);
+      y += lineH + 4;
     }
 
+    buildButtonsY = y + 4;
     renderBuildButtons(state);
     if (state.buildSystem.lastFailReason.length() > 0) {
       fill(255, 130, 130);
-      text("Build error: " + state.buildSystem.lastFailReason, sidePanelX + 18, buildButtonsY - 18);
+      text("Build error: " + state.buildSystem.lastFailReason, contentX, buildButtonsY - 22);
     }
   }
 

@@ -55,6 +55,12 @@ class GameState {
     units.add(new Unit(260, 220, Faction.PLAYER, scoutDef));
     units.add(new Unit(320, 260, Faction.PLAYER, scoutDef));
     units.add(new Unit(540, 400, Faction.ENEMY, scoutDef));
+    Unit wanderer = new Unit(640, 300, Faction.NEUTRAL, scoutDef);
+    wanderer.aiPatrolPoints = new ArrayList<PVector>();
+    wanderer.aiPatrolPoints.add(new PVector(520, 220));
+    wanderer.aiPatrolPoints.add(new PVector(720, 380));
+    wanderer.aiPatrolPoints.add(new PVector(560, 480));
+    units.add(wanderer);
 
     BuildingDef outpost = getBuildingDef("outpost");
     if (outpost == null && buildingDefs.size() > 0) {
@@ -386,6 +392,39 @@ class GameState {
       }
     }
     return best;
+  }
+
+  Unit findHostileInRange(Unit self, float radiusPx) {
+    Unit best = null;
+    float bestScore = 1e9;
+    for (Unit u : units) {
+      if (u == self || u.hp <= 0 || !isHostile(self.faction, u.faction)) {
+        continue;
+      }
+      float d = PVector.dist(self.pos, u.pos);
+      if (d > radiusPx) {
+        continue;
+      }
+      if (!pathfinder.hasLineOfSight(self.pos, u.pos, buildings)) {
+        continue;
+      }
+      float score = d + u.hp * 0.25;
+      if (score < bestScore) {
+        bestScore = score;
+        best = u;
+      }
+    }
+    return best;
+  }
+
+  boolean isHostile(Faction a, Faction b) {
+    if (a == b) {
+      return false;
+    }
+    if (a == Faction.NEUTRAL || b == Faction.NEUTRAL) {
+      return a != b;
+    }
+    return true;
   }
 
   String tileKeyForWorld(PVector worldPos) {

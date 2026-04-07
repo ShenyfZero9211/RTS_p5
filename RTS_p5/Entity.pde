@@ -26,6 +26,12 @@ class Unit extends Entity {
   PVector moveTarget;
   float repathTimer = 0;
   float acquireTimer = 0;
+  float sightRange = 220;
+  float aiThinkTimer = 0;
+  float aiInvestigateTimer = 0;
+  PVector aiLastKnownEnemyPos;
+  ArrayList<PVector> aiPatrolPoints;
+  int aiPatrolIndex;
   PVector lastProgressPos = new PVector();
   float stuckTimer = 0;
 
@@ -73,6 +79,12 @@ class Unit extends Entity {
     attackTimer = max(0, attackTimer - dt);
     repathTimer = max(0, repathTimer - dt);
     acquireTimer = max(0, acquireTimer - dt);
+    aiThinkTimer = max(0, aiThinkTimer - dt);
+    aiInvestigateTimer = max(0, aiInvestigateTimer - dt);
+
+    if (faction == Faction.NEUTRAL) {
+      updateNeutralAi(gs);
+    }
 
     if (orderType == UnitOrderType.ATTACK && attackTarget != null && attackTarget.hp > 0) {
       float d = PVector.dist(pos, attackTarget.pos);
@@ -92,7 +104,12 @@ class Unit extends Entity {
         followPath(dt, gs);
       }
       if (attackTarget.hp <= 0) {
-        Unit next = gs.findPriorityEnemy(this, attackRange * 1.8);
+        Unit next = null;
+        if (faction == Faction.NEUTRAL) {
+          next = gs.findHostileInRange(this, max(attackRange * 1.8, sightRange));
+        } else {
+          next = gs.findPriorityEnemy(this, attackRange * 1.8);
+        }
         if (next != null) {
           issueAttack(next);
         } else {
@@ -155,6 +172,73 @@ class Unit extends Entity {
       return;
     }
     state = UnitState.IDLE;
+  }
+
+  void updateNeutralAi(GameState gs) {
+    if (aiThinkTimer > 0 || gs == null) {
+      return;
+    }
+    aiThinkTimer = random(0.12, 0.22);
+
+    Unit visible = gs.findHostileInRange(this, sightRange);
+    if (visible != null) {
+      aiLastKnownEnemyPos = visible.pos.copy();
+      aiInvestigateTimer = 2.4;
+      if (attackTarget != visible) {
+        issueAttack(visible);
+      }
+      return;
+    }
+
+    if (aiLastKnownEnemyPos != null && aiInvestigateTimer > 0) {
+      if (PVector.dist(pos, aiLastKnownEnemyPos) < radius + 10) {
+        aiInvestigateTimer = 0;
+        aiLastKnownEnemyPos = null;
+      } else {
+        boolean needMove = (moveTarget == null) || PVector.dist(moveTarget, aiLastKnownEnemyPos) > 10;
+        if (needMove || pathQueue.size() == 0) {
+          issueMove(aiLastKnownEnemyPos.copy(), gs, false);
+        }
+      }
+      return;
+    }
+
+    if (aiLastKnownEnemyPos != null && aiInvestigateTimer <= 0) {
+      aiLastKnownEnemyPos = null;
+    }
+
+    if (aiPatrolPoints != null && aiPatrolPoints.size() > 0) {
+      if (orderType == UnitOrderType.ATTACK || orderType == UnitOrderType.ATTACK_MOVE) {
+        return;
+      }
+      PVector wp = aiPatrolPoints.get(aiPatrolIndex);
+      if (PVector.dist(pos, wp) < radius + 22) {
+        aiPatrolIndex = (aiPatrolIndex + 1) % aiPatrolPoints.size();
+        wp = aiPatrolPoints.get(aiPatrolIndex);
+      }
+      if (pathQueue.size() == 0 && orderType == UnitOrderType.NONE) {
+        issueMove(wp.copy(), gs, false);
+      }
+    }
+  }
+
+  String aiDebugStateLabel() {
+    if (faction != Faction.NEUTRAL) {
+      return "";
+    }
+    if (orderType == UnitOrderType.ATTACK && attackTarget != null && attackTarget.hp > 0) {
+      return "ENGAGE";
+    }
+    if (aiLastKnownEnemyPos != null && aiInvestigateTimer > 0) {
+      return "INVEST";
+    }
+    if (aiPatrolPoints != null && aiPatrolPoints.size() > 0) {
+      if (orderType == UnitOrderType.MOVE && pathQueue.size() > 0) {
+        return "PATROL";
+      }
+      return "IDLE";
+    }
+    return "IDLE";
   }
 
   void followPath(float dt, GameState gs) {
@@ -307,6 +391,6 @@ int factionColor(Faction faction) {
   case ENEMY:
     return color(255, 100, 100);
   default:
-    return color(180, 180, 120);
+    return color(245, 165, 70);
   }
 }
