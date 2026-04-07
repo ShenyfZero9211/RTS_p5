@@ -1,0 +1,18 @@
+{
+  "buildings": [
+    {
+      "id": "outpost",
+      "tileW": 2,
+      "tileH": 2,
+      "buildTime": 3.0,
+      "cost": 120
+    },
+    {
+      "id": "factory",
+      "tileW": 3,
+      "tileH": 2,
+      "buildTime": 5.0,
+      "cost": 260
+    }
+  ]
+}

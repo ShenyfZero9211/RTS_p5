@@ -1,0 +1,10 @@
+{
+  "units": [
+    {
+      "id": "scout",
+      "speed": 120,
+      "radius": 11,
+      "hp": 100
+    }
+  ]
+}
