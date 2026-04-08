@@ -15,7 +15,7 @@
       "usesProjectile": false,
       "projectileSpeed": 0,
       "canHarvest": true,
-      "harvestAmount": 25,
+      "harvestAmount": 5,
       "harvestTime": 1.2
     },
     {

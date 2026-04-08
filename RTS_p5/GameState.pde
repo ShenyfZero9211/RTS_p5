@@ -38,6 +38,19 @@ class GameState {
   ArrayList<RocketProjectile> rockets = new ArrayList<RocketProjectile>();
   ArrayList<DeliveryFx> deliveries = new ArrayList<DeliveryFx>();
   ResourcePool resources;
+  ResourcePool enemyResources;
+  float enemyAiDecisionInterval = 0.22;
+  int enemyAiMinersMin = 3;
+  int enemyAiMinersMax = 8;
+  float enemyAiAttackInterval = 55;
+  float enemyAiAttackAdvantage = 1.20;
+  int enemyAiAttackMinArmy = 7;
+  float enemyAiRifleRatio = 0.52;
+  float enemyAiRocketRatio = 0.30;
+  boolean enemyAiDebug = false;
+  int playerStartCredits = 100;
+  int enemyStartCredits = 100;
+  EnemyAiController enemyAi;
   String orderLabel = "None";
   boolean attackMoveArmed = false;
   boolean hardCursorLock = false;
@@ -48,6 +61,7 @@ class GameState {
   ArrayList<Unit> units = new ArrayList<Unit>();
   ArrayList<Building> buildings = new ArrayList<Building>();
   ArrayList<Unit> selectedUnits = new ArrayList<Unit>();
+  Building selectedBuilding;
   Faction activeFaction = Faction.PLAYER;
   String gameResult = "";
   boolean gameEnded = false;
@@ -75,10 +89,12 @@ class GameState {
     commandSystem = new CommandSystem();
     loadDefinitions();
     buildSystem = new BuildSystem(buildingDefs);
-    resources = new ResourcePool(1000);
+    resources = new ResourcePool(playerStartCredits);
+    enemyResources = new ResourcePool(enemyStartCredits);
     cursorLock = new CursorLock();
     pathfinder = new Pathfinder(map);
     input = new InputSystem(this);
+    enemyAi = new EnemyAiController();
 
     seedDemoEntities();
   }
@@ -227,6 +243,17 @@ class GameState {
     fogAutoAdaptiveMaxInterval = root.getFloat("fogAutoAdaptiveMaxInterval", fogAutoAdaptiveMaxInterval);
     fogUnexploredAlpha = root.getInt("fogUnexploredAlpha", fogUnexploredAlpha);
     fogExploredAlpha = root.getInt("fogExploredAlpha", fogExploredAlpha);
+    enemyAiDecisionInterval = root.getFloat("enemyAiDecisionInterval", enemyAiDecisionInterval);
+    enemyAiMinersMin = root.getInt("enemyAiMinersMin", enemyAiMinersMin);
+    enemyAiMinersMax = root.getInt("enemyAiMinersMax", enemyAiMinersMax);
+    enemyAiAttackInterval = root.getFloat("enemyAiAttackInterval", enemyAiAttackInterval);
+    enemyAiAttackAdvantage = root.getFloat("enemyAiAttackAdvantage", enemyAiAttackAdvantage);
+    enemyAiAttackMinArmy = root.getInt("enemyAiAttackMinArmy", enemyAiAttackMinArmy);
+    enemyAiRifleRatio = root.getFloat("enemyAiRifleRatio", enemyAiRifleRatio);
+    enemyAiRocketRatio = root.getFloat("enemyAiRocketRatio", enemyAiRocketRatio);
+    enemyAiDebug = root.getBoolean("enemyAiDebug", enemyAiDebug);
+    playerStartCredits = root.getInt("playerStartCredits", playerStartCredits);
+    enemyStartCredits = root.getInt("enemyStartCredits", enemyStartCredits);
     sidePanelWidthRatio = constrain(sidePanelWidthRatio, 0.12, 0.45);
     sidePanelMinW = max(180, sidePanelMinW);
     sidePanelMaxW = max(sidePanelMinW, sidePanelMaxW);
@@ -241,6 +268,16 @@ class GameState {
     fogAutoAdaptiveMaxInterval = constrain(fogAutoAdaptiveMaxInterval, fogUpdateInterval, 0.8);
     fogUnexploredAlpha = int(constrain(fogUnexploredAlpha, 80, 255));
     fogExploredAlpha = int(constrain(fogExploredAlpha, 30, 220));
+    enemyAiDecisionInterval = constrain(enemyAiDecisionInterval, 0.08, 0.8);
+    enemyAiMinersMin = int(constrain(enemyAiMinersMin, 1, 24));
+    enemyAiMinersMax = int(constrain(enemyAiMinersMax, enemyAiMinersMin, 32));
+    enemyAiAttackInterval = constrain(enemyAiAttackInterval, 12, 180);
+    enemyAiAttackAdvantage = constrain(enemyAiAttackAdvantage, 0.7, 2.4);
+    enemyAiAttackMinArmy = int(constrain(enemyAiAttackMinArmy, 2, 40));
+    enemyAiRifleRatio = constrain(enemyAiRifleRatio, 0.10, 0.80);
+    enemyAiRocketRatio = constrain(enemyAiRocketRatio, 0.05, 0.70);
+    playerStartCredits = int(constrain(playerStartCredits, 0, 99999));
+    enemyStartCredits = int(constrain(enemyStartCredits, 0, 99999));
   }
 
   void loadDefinitions() {
@@ -411,6 +448,15 @@ class GameState {
         units.remove(i);
       }
     }
+    for (int i = buildings.size() - 1; i >= 0; i--) {
+      Building b = buildings.get(i);
+      if (b.hp <= 0) {
+        if (selectedBuilding == b) {
+          selectedBuilding = null;
+        }
+        buildings.remove(i);
+      }
+    }
     applyUnitSeparation();
     for (int i = 0; i < units.size(); i++) {
       resolveUnitAgainstSolids(units.get(i));
@@ -418,6 +464,9 @@ class GameState {
     updateRockets(dt);
     updateMuzzleFx(dt);
     updateDeliveryFx(dt);
+    if (enemyAi != null) {
+      enemyAi.update(dt, this);
+    }
     checkWinCondition();
   }
 
@@ -469,6 +518,10 @@ class GameState {
     for (Unit u : units) {
       u.selected = false;
     }
+    for (Building b : buildings) {
+      b.selected = false;
+    }
+    selectedBuilding = null;
     selectedUnits.clear();
   }
 
@@ -524,6 +577,28 @@ class GameState {
     return best;
   }
 
+  Building findNearestBuildingAt(PVector worldPos, float radiusPx, boolean onlyVisible) {
+    Building best = null;
+    float bestD = 1e9;
+    for (Building b : buildings) {
+      if (b.hp <= 0) {
+        continue;
+      }
+      if (onlyVisible && !isBuildingVisibleToPlayer(b)) {
+        continue;
+      }
+      float cx = b.pos.x + b.tileW * map.tileSize * 0.5;
+      float cy = b.pos.y + b.tileH * map.tileSize * 0.5;
+      float d = dist(worldPos.x, worldPos.y, cx, cy);
+      float catchRange = radiusPx + max(b.tileW, b.tileH) * map.tileSize * 0.5;
+      if (d <= catchRange && d < bestD) {
+        bestD = d;
+        best = b;
+      }
+    }
+    return best;
+  }
+
   void applyUnitSeparation() {
     float padding = 4;
     for (int i = 0; i < units.size(); i++) {
@@ -553,7 +628,8 @@ class GameState {
   }
 
   void renderDebugPaths() {
-    strokeWeight(max(1, camera.zoom * 0.12));
+    pushStyle();
+    strokeWeight(1);
     for (Unit u : units) {
       if (u.pathQueue.size() == 0) {
         continue;
@@ -571,6 +647,7 @@ class GameState {
       }
     }
     noStroke();
+    popStyle();
   }
 
   void clampUnitToWorld(Unit u) {
@@ -813,6 +890,187 @@ class GameState {
     return false;
   }
 
+  ResourcePool resourcePoolForFaction(Faction faction) {
+    if (faction == Faction.ENEMY) {
+      return enemyResources;
+    }
+    return resources;
+  }
+
+  int countFactionUnitsByType(Faction faction, String unitId) {
+    int c = 0;
+    for (Unit u : units) {
+      if (u.faction == faction && u.hp > 0 && u.unitType.equals(unitId)) {
+        c++;
+      }
+    }
+    return c;
+  }
+
+  int countFactionCombatUnits(Faction faction) {
+    int c = 0;
+    for (Unit u : units) {
+      if (u.faction != faction || u.hp <= 0) {
+        continue;
+      }
+      if (!u.canHarvest) {
+        c++;
+      }
+    }
+    return c;
+  }
+
+  int countFactionBuildingsByType(Faction faction, String buildingType, boolean completedOnly) {
+    int c = 0;
+    for (Building b : buildings) {
+      if (b.faction != faction) {
+        continue;
+      }
+      if (completedOnly && !b.completed) {
+        continue;
+      }
+      if (b.buildingType.equals(buildingType)) {
+        c++;
+      }
+    }
+    return c;
+  }
+
+  Building findMainBaseForFaction(Faction faction) {
+    Building first = null;
+    for (Building b : buildings) {
+      if (b.faction != faction || !b.completed) {
+        continue;
+      }
+      BuildingDef def = getBuildingDef(b.buildingType);
+      if (def == null) {
+        continue;
+      }
+      if (first == null) {
+        first = b;
+      }
+      if (def.isMainBase) {
+        return b;
+      }
+    }
+    return first;
+  }
+
+  boolean tryQueueBuildingForFaction(Faction faction, String buildingId, PVector anchorWorld) {
+    BuildingDef def = getBuildingDef(buildingId);
+    if (def == null) {
+      return false;
+    }
+    ResourcePool pool = resourcePoolForFaction(faction);
+    if (pool == null || !pool.canAfford(def.cost)) {
+      return false;
+    }
+    if (!buildSystem.hasRequiredBuildings(def, buildings, faction)) {
+      return false;
+    }
+    PVector anchor = anchorWorld == null ? new PVector(map.worldWidthPx() * 0.5, map.worldHeightPx() * 0.5) : anchorWorld;
+    int desiredTx = map.toTileX(anchor.x);
+    int desiredTy = map.toTileY(anchor.y);
+    for (int r = 0; r <= 20; r++) {
+      for (int oy = -r; oy <= r; oy++) {
+        for (int ox = -r; ox <= r; ox++) {
+          int tx = desiredTx + ox;
+          int ty = desiredTy + oy;
+          if (!canPlaceBuildingFootprint(def, tx, ty, 1)) {
+            continue;
+          }
+          if (!pool.spend(def.cost)) {
+            return false;
+          }
+          BuildJob job = new BuildJob(tx * map.tileSize, ty * map.tileSize, faction, def);
+          buildSystem.queue.add(job);
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  boolean tryTrainUnitForFaction(Faction faction, String unitId) {
+    UnitDef def = getUnitDef(unitId);
+    if (def == null) {
+      return false;
+    }
+    ResourcePool pool = resourcePoolForFaction(faction);
+    if (pool == null || !pool.canAfford(def.cost)) {
+      return false;
+    }
+    Building trainer = null;
+    for (Building b : buildings) {
+      if (b.faction != faction || !b.completed) {
+        continue;
+      }
+      BuildingDef bdef = getBuildingDef(b.buildingType);
+      if (bdef == null || !bdef.canTrainUnits || bdef.trainableUnits == null) {
+        continue;
+      }
+      for (int i = 0; i < bdef.trainableUnits.length; i++) {
+        if (bdef.trainableUnits[i].equals(unitId)) {
+          trainer = b;
+          break;
+        }
+      }
+      if (trainer != null) {
+        break;
+      }
+    }
+    if (trainer == null) {
+      return false;
+    }
+    if (!pool.spend(def.cost)) {
+      return false;
+    }
+    PVector spawn = findSpawnAroundBuilding(trainer);
+    units.add(new Unit(spawn.x, spawn.y, faction, def));
+    return true;
+  }
+
+  PVector enemyRallyPoint() {
+    Building base = findMainBaseForFaction(Faction.ENEMY);
+    if (base == null) {
+      return new PVector(map.worldWidthPx() * 0.7, map.worldHeightPx() * 0.7);
+    }
+    float cx = base.pos.x + base.tileW * map.tileSize * 0.5;
+    float cy = base.pos.y + base.tileH * map.tileSize * 0.5;
+    return findNearestOpenSlot(new PVector(cx - map.tileSize * 5.0, cy - map.tileSize * 3.0), new ArrayList<String>());
+  }
+
+  PVector playerAttackTarget() {
+    Building playerBase = findMainBaseForFaction(Faction.PLAYER);
+    if (playerBase != null) {
+      return new PVector(playerBase.pos.x + playerBase.tileW * map.tileSize * 0.5, playerBase.pos.y + playerBase.tileH * map.tileSize * 0.5);
+    }
+    if (units.size() > 0) {
+      for (Unit u : units) {
+        if (u.faction == Faction.PLAYER && u.hp > 0) {
+          return u.pos.copy();
+        }
+      }
+    }
+    return new PVector(map.worldWidthPx() * 0.25, map.worldHeightPx() * 0.25);
+  }
+
+  float armyValueForFaction(Faction faction) {
+    float v = 0;
+    for (Unit u : units) {
+      if (u.faction != faction || u.hp <= 0 || u.canHarvest) {
+        continue;
+      }
+      UnitDef def = getUnitDef(u.unitType);
+      if (def != null) {
+        v += max(20, def.cost);
+      } else {
+        v += 60;
+      }
+    }
+    return v;
+  }
+
   Building findNearestDropoffBuilding(PVector from, Faction faction) {
     Building best = null;
     float bestD = 1e9;
@@ -920,7 +1178,7 @@ class GameState {
   int countFactionBuildings(Faction f) {
     int c = 0;
     for (Building b : buildings) {
-      if (b.faction == f) {
+      if (b.faction == f && b.hp > 0) {
         c++;
       }
     }
@@ -1021,6 +1279,182 @@ class GameState {
     float cx = b.pos.x + b.tileW * map.tileSize * 0.5;
     float cy = b.pos.y + b.tileH * map.tileSize * 0.5;
     return fog.isWorldVisible(map, cx, cy);
+  }
+}
+
+class EnemyAiController {
+  static final int BOOTSTRAP = 0;
+  static final int ECO = 1;
+  static final int TECH = 2;
+  static final int MUSTER = 3;
+  static final int ATTACK = 4;
+
+  int phase = BOOTSTRAP;
+  float decisionTimer = 0;
+  float attackTimer = 0;
+  float lastEnemyArmyValue = 0;
+  int waveSerial = 0;
+  String lastAction = "init";
+
+  void update(float dt, GameState gs) {
+    decisionTimer -= dt;
+    attackTimer += dt;
+    if (decisionTimer > 0) {
+      return;
+    }
+    decisionTimer = gs.enemyAiDecisionInterval;
+    tick(gs);
+  }
+
+  void tick(GameState gs) {
+    int enemyMines = gs.countFactionBuildingsByType(Faction.ENEMY, "mine", false);
+    int enemyDepots = gs.countFactionBuildingsByType(Faction.ENEMY, "depot", false);
+    int enemyBarracks = gs.countFactionBuildingsByType(Faction.ENEMY, "barracks", false);
+    int enemyMiners = gs.countFactionUnitsByType(Faction.ENEMY, "miner");
+    int enemyCombat = gs.countFactionCombatUnits(Faction.ENEMY);
+
+    float enemyArmyValue = gs.armyValueForFaction(Faction.ENEMY);
+    float playerArmyValue = max(1, gs.armyValueForFaction(Faction.PLAYER));
+    lastEnemyArmyValue = enemyArmyValue;
+
+    if (enemyMines < 1 || enemyMiners < gs.enemyAiMinersMin) {
+      phase = ECO;
+    } else if (enemyDepots < 1 || enemyBarracks < 1) {
+      phase = TECH;
+    } else if (enemyCombat < gs.enemyAiAttackMinArmy) {
+      phase = MUSTER;
+    } else {
+      phase = ATTACK;
+    }
+
+    runEconomy(gs, enemyMines, enemyMiners);
+    runTech(gs, enemyDepots, enemyBarracks);
+    runProduction(gs, enemyMiners, enemyCombat);
+
+    boolean readyByTime = attackTimer >= gs.enemyAiAttackInterval;
+    boolean readyByAdv = enemyArmyValue >= playerArmyValue * gs.enemyAiAttackAdvantage;
+    boolean readyByCount = enemyCombat >= gs.enemyAiAttackMinArmy + 2;
+    if (phase == ATTACK && (readyByTime || readyByAdv || readyByCount)) {
+      launchAttackWave(gs);
+      attackTimer = 0;
+    } else {
+      rallyArmy(gs);
+    }
+  }
+
+  void runEconomy(GameState gs, int enemyMines, int enemyMiners) {
+    Building base = gs.findMainBaseForFaction(Faction.ENEMY);
+    PVector anchor = base == null ? new PVector(gs.map.worldWidthPx() * 0.75, gs.map.worldHeightPx() * 0.75) : base.pos.copy();
+    if (enemyMines < 1) {
+      if (gs.tryQueueBuildingForFaction(Faction.ENEMY, "mine", anchor)) {
+        lastAction = "build:mine";
+        return;
+      }
+    }
+    if (enemyMines < 2 && gs.enemyResources.credits > 280 && enemyMiners >= gs.enemyAiMinersMin + 1) {
+      if (gs.tryQueueBuildingForFaction(Faction.ENEMY, "mine", anchor)) {
+        lastAction = "expand:mine";
+      }
+    }
+  }
+
+  void runTech(GameState gs, int enemyDepots, int enemyBarracks) {
+    Building base = gs.findMainBaseForFaction(Faction.ENEMY);
+    PVector anchor = base == null ? new PVector(gs.map.worldWidthPx() * 0.75, gs.map.worldHeightPx() * 0.75) : base.pos.copy();
+    if (enemyDepots < 1) {
+      if (gs.tryQueueBuildingForFaction(Faction.ENEMY, "depot", PVector.add(anchor, new PVector(-gs.map.tileSize * 2.0, -gs.map.tileSize * 4.0)))) {
+        lastAction = "build:depot";
+        return;
+      }
+    }
+    if (enemyBarracks < 1) {
+      if (gs.tryQueueBuildingForFaction(Faction.ENEMY, "barracks", PVector.add(anchor, new PVector(-gs.map.tileSize * 5.0, -gs.map.tileSize * 3.0)))) {
+        lastAction = "build:barracks";
+        return;
+      }
+    }
+    if (enemyBarracks < 2 && gs.enemyResources.credits > 420 && gs.countFactionCombatUnits(Faction.ENEMY) >= 8) {
+      if (gs.tryQueueBuildingForFaction(Faction.ENEMY, "barracks", PVector.add(anchor, new PVector(-gs.map.tileSize * 8.0, -gs.map.tileSize * 5.0)))) {
+        lastAction = "expand:barracks";
+      }
+    }
+  }
+
+  void runProduction(GameState gs, int enemyMiners, int enemyCombat) {
+    int targetMiners = int(constrain(gs.enemyAiMinersMin + enemyCombat / 6, gs.enemyAiMinersMin, gs.enemyAiMinersMax));
+    if (enemyMiners < targetMiners) {
+      if (gs.tryTrainUnitForFaction(Faction.ENEMY, "miner")) {
+        lastAction = "train:miner";
+        return;
+      }
+    }
+
+    int rifleCount = gs.countFactionUnitsByType(Faction.ENEMY, "rifleman");
+    int rocketCount = gs.countFactionUnitsByType(Faction.ENEMY, "rocketeer");
+    int combatCount = max(1, rifleCount + rocketCount);
+    float rifleShare = rifleCount / float(combatCount);
+    float rocketShare = rocketCount / float(combatCount);
+    if (rocketShare < gs.enemyAiRocketRatio) {
+      if (gs.tryTrainUnitForFaction(Faction.ENEMY, "rocketeer")) {
+        lastAction = "train:rocketeer";
+        return;
+      }
+    }
+    if (rifleShare < gs.enemyAiRifleRatio) {
+      if (gs.tryTrainUnitForFaction(Faction.ENEMY, "rifleman")) {
+        lastAction = "train:rifleman";
+        return;
+      }
+    }
+    // Fallback production.
+    if (!gs.tryTrainUnitForFaction(Faction.ENEMY, "rifleman")) {
+      gs.tryTrainUnitForFaction(Faction.ENEMY, "rocketeer");
+    }
+  }
+
+  void rallyArmy(GameState gs) {
+    PVector rally = gs.enemyRallyPoint();
+    for (Unit u : gs.units) {
+      if (u.faction != Faction.ENEMY || u.hp <= 0 || u.canHarvest) {
+        continue;
+      }
+      if (u.orderType == UnitOrderType.ATTACK || u.orderType == UnitOrderType.ATTACK_MOVE) {
+        continue;
+      }
+      if (u.moveTarget != null && PVector.dist(u.moveTarget, rally) < 24 && u.pathQueue.size() > 0) {
+        continue;
+      }
+      u.issueMove(rally.copy(), gs, false);
+    }
+    lastAction = "muster";
+  }
+
+  void launchAttackWave(GameState gs) {
+    waveSerial++;
+    PVector target = gs.playerAttackTarget();
+    for (Unit u : gs.units) {
+      if (u.faction != Faction.ENEMY || u.hp <= 0 || u.canHarvest) {
+        continue;
+      }
+      u.issueAttackMove(target.copy(), gs, false);
+    }
+    lastAction = "attack-wave-" + waveSerial;
+  }
+
+  String phaseLabel() {
+    if (phase == ECO) {
+      return "ECO";
+    }
+    if (phase == TECH) {
+      return "TECH";
+    }
+    if (phase == MUSTER) {
+      return "MUSTER";
+    }
+    if (phase == ATTACK) {
+      return "ATTACK";
+    }
+    return "BOOTSTRAP";
   }
 }
 
@@ -1153,12 +1587,20 @@ class RocketProjectile {
       return;
     }
     PVector s = camera.worldToScreen(pos.x, pos.y);
-    PVector t = camera.worldToScreen(target.pos.x, target.pos.y);
-    stroke(255, 140, 90, 180);
+    PVector dir = PVector.sub(target.pos, pos);
+    if (dir.magSq() < 1e-6) {
+      dir.set(1, 0);
+    } else {
+      dir.normalize();
+    }
+    float tailLen = max(10, 24 * camera.zoom);
+    PVector tailWorld = PVector.sub(pos, PVector.mult(dir, tailLen));
+    PVector tail = camera.worldToScreen(tailWorld.x, tailWorld.y);
+    stroke(255, 140, 90, 190);
     strokeWeight(max(1, 1.6 * camera.zoom));
-    line(s.x, s.y, t.x, t.y);
+    line(tail.x, tail.y, s.x, s.y);
     noStroke();
-    fill(255, 200, 120);
+    fill(255, 210, 140);
     ellipse(s.x, s.y, 6 * camera.zoom, 6 * camera.zoom);
   }
 }

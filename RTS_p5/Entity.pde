@@ -36,6 +36,7 @@ class Unit extends Entity {
   UnitOrderType orderType = UnitOrderType.NONE;
   UnitState state = UnitState.IDLE;
   Unit attackTarget;
+  Building attackBuildingTarget;
   PVector moveTarget;
   float repathTimer = 0;
   float acquireTimer = 0;
@@ -72,19 +73,23 @@ class Unit extends Entity {
     if (!queue) {
       pathQueue.clear();
       attackTarget = null;
+      attackBuildingTarget = null;
     }
     moveTarget = target.copy();
     stuckTimer = 0;
     lastProgressPos.set(pos);
     orderType = UnitOrderType.MOVE;
     state.pathfinderRepath(this, target, queue);
-    state.orderLabel = "Move";
+    if (faction == Faction.PLAYER) {
+      state.orderLabel = "Move";
+    }
   }
 
   void issueAttackMove(PVector target, GameState state, boolean queue) {
     if (!queue) {
       pathQueue.clear();
       attackTarget = null;
+      attackBuildingTarget = null;
     }
     moveTarget = target.copy();
     cancelHarvestOrder();
@@ -92,11 +97,22 @@ class Unit extends Entity {
     lastProgressPos.set(pos);
     orderType = UnitOrderType.ATTACK_MOVE;
     state.pathfinderRepath(this, target, queue);
-    state.orderLabel = "AttackMove";
+    if (faction == Faction.PLAYER) {
+      state.orderLabel = "AttackMove";
+    }
   }
 
   void issueAttack(Unit target) {
     attackTarget = target;
+    attackBuildingTarget = null;
+    cancelHarvestOrder();
+    orderType = UnitOrderType.ATTACK;
+    state = UnitState.CHASING;
+  }
+
+  void issueAttackBuilding(Building target) {
+    attackTarget = null;
+    attackBuildingTarget = target;
     cancelHarvestOrder();
     orderType = UnitOrderType.ATTACK;
     state = UnitState.CHASING;
@@ -115,7 +131,9 @@ class Unit extends Entity {
     pathQueue.clear();
     moveTarget = null;
     orderType = UnitOrderType.NONE;
-    gs.orderLabel = "Harvest";
+    if (faction == Faction.PLAYER) {
+      gs.orderLabel = "Harvest";
+    }
   }
 
   void cancelHarvestOrder() {
@@ -150,20 +168,32 @@ class Unit extends Entity {
       updateCombatAi(gs);
     }
 
-    if (orderType == UnitOrderType.ATTACK && attackTarget != null && attackTarget.hp > 0) {
-      if (faction == Faction.PLAYER && gs != null && !gs.isUnitVisibleToPlayer(attackTarget)) {
+    if (orderType == UnitOrderType.ATTACK &&
+      ((attackTarget != null && attackTarget.hp > 0) || (attackBuildingTarget != null && attackBuildingTarget.hp > 0))) {
+      if (attackBuildingTarget != null && attackBuildingTarget.hp <= 0) {
+        attackBuildingTarget = null;
+      }
+      if (faction == Faction.PLAYER && gs != null && attackTarget != null && !gs.isUnitVisibleToPlayer(attackTarget)) {
         attackTarget = null;
         orderType = UnitOrderType.NONE;
         state = UnitState.IDLE;
         pathQueue.clear();
         return;
       }
-      float d = PVector.dist(pos, attackTarget.pos);
+      PVector targetPos = attackTarget != null ? attackTarget.pos :
+        new PVector(attackBuildingTarget.pos.x + attackBuildingTarget.tileW * gs.map.tileSize * 0.5,
+        attackBuildingTarget.pos.y + attackBuildingTarget.tileH * gs.map.tileSize * 0.5);
+      float d = PVector.dist(pos, targetPos);
       if (d <= attackRange) {
         state = UnitState.ATTACKING;
         pathQueue.clear();
         if (attackTimer <= 0) {
-          if (usesProjectile && gs != null) {
+          if (attackBuildingTarget != null) {
+            attackBuildingTarget.hp -= int(attackDamage);
+            if (gs != null && unitType.equals("rifleman")) {
+              gs.spawnMuzzleFx(this, targetPos.copy());
+            }
+          } else if (usesProjectile && gs != null) {
             gs.spawnRocketProjectile(this, attackTarget, attackDamage, max(120, projectileSpeed));
           } else {
             attackTarget.hp -= int(attackDamage);
@@ -176,12 +206,12 @@ class Unit extends Entity {
       } else {
         state = UnitState.CHASING;
         if (repathTimer <= 0) {
-          gs.pathfinderRepath(this, attackTarget.pos.copy(), false);
+          gs.pathfinderRepath(this, targetPos.copy(), false);
           repathTimer = 0.35;
         }
         followPath(dt, gs);
       }
-      if (attackTarget.hp <= 0) {
+      if ((attackTarget == null || attackTarget.hp <= 0) && (attackBuildingTarget == null || attackBuildingTarget.hp <= 0)) {
         Unit next = null;
         if (faction == Faction.NEUTRAL) {
           next = gs.findHostileInRange(this, max(attackRange * 1.8, sightRange));
@@ -194,6 +224,7 @@ class Unit extends Entity {
           orderType = UnitOrderType.NONE;
           state = UnitState.IDLE;
           attackTarget = null;
+          attackBuildingTarget = null;
         }
       }
       return;
@@ -365,8 +396,9 @@ class Unit extends Entity {
       float fallbackDeliverRange = max(radius + 14, gs.map.tileSize * 0.78);
 
       if (inDropoffBox || dDrop <= fallbackDeliverRange) {
-        if (faction == Faction.PLAYER) {
-          gs.resources.credits += cargoGold;
+        ResourcePool pool = gs.resourcePoolForFaction(faction);
+        if (pool != null) {
+          pool.credits += cargoGold;
         }
         gs.spawnDeliveryFx(pos.copy(), cargoGold);
         cargoGold = 0;
@@ -543,6 +575,7 @@ class Unit extends Entity {
   }
 
   void render(Camera camera) {
+    pushStyle();
     PVector s = camera.worldToScreen(pos.x, pos.y);
     float rr = radius * camera.zoom;
     noStroke();
@@ -567,7 +600,7 @@ class Unit extends Entity {
       float k = constrain(harvestTimer / max(0.01, harvestTime), 0, 1);
       noFill();
       stroke(255, 220, 90, 180);
-      strokeWeight(max(1, camera.zoom * 1.2));
+      strokeWeight(1.5);
       float pr = (radius + 6 + (1 - k) * 8) * camera.zoom;
       ellipse(s.x, s.y, pr * 2, pr * 2);
       noStroke();
@@ -593,6 +626,7 @@ class Unit extends Entity {
     textAlign(CENTER, TOP);
     text(unitLabel, s.x, s.y - rr - 19);
     textAlign(LEFT, TOP);
+    popStyle();
   }
 }
 
@@ -603,6 +637,9 @@ class Building extends Entity {
   float buildProgress = 0;
   float buildTime = 3;
   String buildingType = "outpost";
+  int hp;
+  int maxHp;
+  boolean selected = false;
 
   Building(float x, float y, int tileW, int tileH, Faction faction, BuildingDef def) {
     super(x, y, 8, faction);
@@ -610,9 +647,12 @@ class Building extends Entity {
     this.tileH = tileH;
     this.buildTime = max(0.1, def.buildTime);
     this.buildingType = def.id;
+    this.maxHp = max(180, def.cost * 4);
+    this.hp = maxHp;
   }
 
   void render(Camera camera, int tileSize) {
+    pushStyle();
     PVector s = camera.worldToScreen(pos.x, pos.y);
     float sw = tileW * tileSize * camera.zoom;
     float sh = tileH * tileSize * camera.zoom;
@@ -625,8 +665,15 @@ class Building extends Entity {
     }
     rect(s.x, s.y, sw, sh);
     stroke(40);
+    strokeWeight(1);
     noFill();
     rect(s.x, s.y, sw, sh);
+    if (selected) {
+      stroke(20, 240, 90);
+      strokeWeight(2);
+      noFill();
+      rect(s.x - 2, s.y - 2, sw + 4, sh + 4);
+    }
 
     if (!completed) {
       float pct = constrain(buildProgress / buildTime, 0, 1);
@@ -635,6 +682,13 @@ class Building extends Entity {
       rect(s.x, s.y - 8, sw, 5);
       fill(80, 230, 110);
       rect(s.x, s.y - 8, sw * pct, 5);
+    }
+    if (completed && hp < maxHp) {
+      noStroke();
+      fill(20, 20, 20, 220);
+      rect(s.x, s.y - 8, sw, 5);
+      fill(95, 220, 110);
+      rect(s.x, s.y - 8, sw * constrain(hp / float(max(1, maxHp)), 0, 1), 5);
     }
 
     // Building type marker for quick battlefield identification.
@@ -645,6 +699,7 @@ class Building extends Entity {
     textSize(10);
     textAlign(LEFT, TOP);
     text(label, s.x + 3, s.y - 22);
+    popStyle();
   }
 }
 

@@ -15,5 +15,16 @@
   "fogAutoAdaptiveStep": 0.004,
   "fogAutoAdaptiveMaxInterval": 0.22,
   "fogUnexploredAlpha": 220,
-  "fogExploredAlpha": 120
+  "fogExploredAlpha": 120,
+  "enemyAiDecisionInterval": 0.22,
+  "enemyAiMinersMin": 3,
+  "enemyAiMinersMax": 8,
+  "enemyAiAttackInterval": 55,
+  "enemyAiAttackAdvantage": 1.2,
+  "enemyAiAttackMinArmy": 7,
+  "enemyAiRifleRatio": 0.52,
+  "enemyAiRocketRatio": 0.3,
+  "enemyAiDebug": false,
+  "playerStartCredits": 100,
+  "enemyStartCredits": 100
 }

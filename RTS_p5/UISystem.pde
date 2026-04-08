@@ -96,14 +96,69 @@ class UISystem {
     infoY += lineH;
     text("Order: " + state.orderLabel + "   BuildQ: " + state.buildSystem.queuedCount(), contentX, infoY);
     infoY += lineH;
-    if (state.selectedUnits.size() == 1) {
-      Unit su = state.selectedUnits.get(0);
-      if (su.faction == Faction.NEUTRAL) {
-        fill(255, 200, 140);
-        text("AI [NEUTRAL]: " + su.aiDebugStateLabel(), contentX, infoY);
+    if (state.enemyAiDebug && state.enemyAi != null) {
+      fill(180, 210, 255);
+      text("EnemyAI: " + state.enemyAi.phaseLabel() + "  $" + state.enemyResources.credits, contentX, infoY);
+      infoY += lineH;
+      fill(160, 190, 220);
+      text("WaveT: " + nf(state.enemyAi.attackTimer, 1, 1) + "  Last: " + state.enemyAi.lastAction, contentX, infoY);
+      infoY += lineH;
+      fill(230);
+    }
+    if (state.selectedBuilding != null) {
+      Building sb = state.selectedBuilding;
+      BuildingDef bdef = state.getBuildingDef(sb.buildingType);
+      fill(210, 235, 255);
+      text("Selected Building: " + sb.buildingType.toUpperCase(), contentX, infoY);
+      infoY += lineH;
+      fill(200);
+      text("HP: " + sb.hp + " / " + max(1, sb.maxHp) + "   Size: " + sb.tileW + "x" + sb.tileH, contentX, infoY);
+      infoY += lineH;
+      if (bdef != null) {
+        text("Category: " + bdef.category + "   BuildTime: " + nf(bdef.buildTime, 1, 1), contentX, infoY);
         infoY += lineH;
-        fill(230);
       }
+      fill(230);
+    } else if (state.selectedUnits.size() == 1) {
+      Unit su = state.selectedUnits.get(0);
+      fill(210, 235, 255);
+      text("Selected Unit: " + unitTypeLabel(su.unitType), contentX, infoY);
+      infoY += lineH;
+      fill(200);
+      text("HP: " + su.hp + "   Role: " + su.unitType, contentX, infoY);
+      infoY += lineH;
+      text("ATK: " + int(su.attackDamage) + "   RNG: " + int(su.attackRange) + "   SPD: " + int(su.speed), contentX, infoY);
+      infoY += lineH;
+      if (su.canHarvest) {
+        text("Harvest: cargo " + su.cargoGold + "   mode " + su.harvestMode, contentX, infoY);
+        infoY += lineH;
+      }
+      if (su.faction == Faction.NEUTRAL || su.faction == Faction.ENEMY) {
+        fill(255, 200, 140);
+        text("AI: " + su.aiDebugStateLabel(), contentX, infoY);
+        infoY += lineH;
+      }
+      fill(230);
+    } else if (state.selectedUnits.size() > 1) {
+      int miners = 0;
+      int rifles = 0;
+      int rockets = 0;
+      for (Unit u : state.selectedUnits) {
+        if (u.unitType.equals("miner")) {
+          miners++;
+        } else if (u.unitType.equals("rifleman")) {
+          rifles++;
+        } else if (u.unitType.equals("rocketeer")) {
+          rockets++;
+        }
+      }
+      fill(210, 235, 255);
+      text("Selected Group: " + state.selectedUnits.size() + " units", contentX, infoY);
+      infoY += lineH;
+      fill(200);
+      text("Miner " + miners + "   Rifle " + rifles + "   Rocket " + rockets, contentX, infoY);
+      infoY += lineH;
+      fill(230);
     }
     fill(190);
     text("A:" + (state.attackMoveArmed ? "ON" : "OFF") + "  L:" + (state.hardCursorLock ? "ON" : "OFF") + "  P:" + (state.debugShowPaths ? "ON" : "OFF"), contentX, infoY);
@@ -183,6 +238,19 @@ class UISystem {
     vertex(x, y + h - c);
     vertex(x, y + c);
     endShape(CLOSE);
+  }
+
+  String unitTypeLabel(String id) {
+    if (id.equals("miner")) {
+      return "MINER";
+    }
+    if (id.equals("rifleman")) {
+      return "RIFLEMAN";
+    }
+    if (id.equals("rocketeer")) {
+      return "ROCKETEER";
+    }
+    return id.toUpperCase();
   }
 
   void drawChamferStroke(float x, float y, float w, float h, float c, int col, float sw) {

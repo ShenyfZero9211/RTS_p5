@@ -87,6 +87,15 @@ class InputSystem {
         state.orderLabel = "Attack";
         state.addOrderMarker(target.pos.copy(), true);
       } else {
+        Building bt = state.findNearestBuildingAt(world, 18, true);
+        if (bt != null && bt.faction != state.activeFaction) {
+          state.clearSelectedHarvestOrders();
+          state.commandSystem.attackSelectedBuilding(state.selectedUnits, bt);
+          PVector bc = new PVector(bt.pos.x + bt.tileW * state.map.tileSize * 0.5, bt.pos.y + bt.tileH * state.map.tileSize * 0.5);
+          state.orderLabel = "AttackBuilding";
+          state.addOrderMarker(bc, true);
+          return;
+        }
         if (state.attackMoveArmed) {
           state.clearSelectedHarvestOrders();
           state.commandSystem.attackMoveSelected(state, state.selectedUnits, world, queue);
@@ -150,6 +159,12 @@ class InputSystem {
       if (best != null) {
         best.selected = true;
         state.selectedUnits.add(best);
+        return;
+      }
+      Building bb = state.findNearestBuildingAt(dragEnd, 10, true);
+      if (bb != null && bb.faction == state.activeFaction) {
+        bb.selected = true;
+        state.selectedBuilding = bb;
       }
       return;
     }

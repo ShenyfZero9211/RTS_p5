@@ -62,6 +62,12 @@ class CommandSystem {
     }
   }
 
+  void attackSelectedBuilding(ArrayList<Unit> selectedUnits, Building target) {
+    for (Unit u : selectedUnits) {
+      u.issueAttackBuilding(target);
+    }
+  }
+
   void attackMoveSelected(GameState state, ArrayList<Unit> selectedUnits, PVector target, boolean queue) {
     if (selectedUnits.size() == 0) {
       return;
