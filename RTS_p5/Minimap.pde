@@ -18,6 +18,18 @@ class Minimap {
 
     float scaleX = w / float(map.worldWidthPx());
     float scaleY = h / float(map.worldHeightPx());
+    float scale = min(scaleX, scaleY);
+    float drawW = map.worldWidthPx() * scale;
+    float drawH = map.worldHeightPx() * scale;
+    float ox = x + (w - drawW) * 0.5;
+    float oy = y + (h - drawH) * 0.5;
+
+    // Letterbox/pillarbox background for non-square aspect fit.
+    fill(10, 10, 10, 170);
+    rect(x, y, w, h);
+    stroke(55, 55, 55);
+    noFill();
+    rect(ox, oy, drawW, drawH);
 
     int step = 2;
     for (int ty = 0; ty < map.heightTiles; ty += step) {
@@ -30,38 +42,37 @@ class Minimap {
         } else {
           fill(42, 42, 42);
         }
-        float px = x + tx * map.tileSize * scaleX;
-        float py = y + ty * map.tileSize * scaleY;
-        rect(px, py, map.tileSize * scaleX * step, map.tileSize * scaleY * step);
+        float px = ox + tx * map.tileSize * scale;
+        float py = oy + ty * map.tileSize * scale;
+        rect(px, py, map.tileSize * scale * step, map.tileSize * scale * step);
       }
     }
 
     for (Building b : buildings) {
       fill(factionColor(b.faction));
-      float bx = x + b.pos.x * scaleX;
-      float by = y + b.pos.y * scaleY;
-      rect(bx, by, b.tileW * map.tileSize * scaleX, b.tileH * map.tileSize * scaleY);
+      float bx = ox + b.pos.x * scale;
+      float by = oy + b.pos.y * scale;
+      rect(bx, by, b.tileW * map.tileSize * scale, b.tileH * map.tileSize * scale);
     }
 
     for (Unit u : units) {
       fill(factionColor(u.faction));
-      float ux = x + u.pos.x * scaleX;
-      float uy = y + u.pos.y * scaleY;
-      rect(ux - 1, uy - 1, 3, 3);
+      float ux = ox + u.pos.x * scale;
+      float uy = oy + u.pos.y * scale;
+      float d = max(2, 3 * scale / min(scaleX, scaleY));
+      rect(ux - d * 0.5, uy - d * 0.5, d, d);
     }
 
     noFill();
     stroke(120, 255, 120);
     float vwWorld = camera.visibleWorldW();
     float vhWorld = camera.visibleWorldH();
-    float vx = x + camera.x * scaleX;
-    float vy = y + camera.y * scaleY;
-    float vw = vwWorld * scaleX;
-    float vh = vhWorld * scaleY;
-    vw = min(vw, w);
-    vh = min(vh, h);
-    vx = constrain(vx, x, x + w - vw);
-    vy = constrain(vy, y, y + h - vh);
+    float vx = ox + camera.x * scale;
+    float vy = oy + camera.y * scale;
+    float vw = min(vwWorld * scale, drawW);
+    float vh = min(vhWorld * scale, drawH);
+    vx = constrain(vx, ox, ox + drawW - vw);
+    vy = constrain(vy, oy, oy + drawH - vh);
     rect(vx, vy, vw, vh);
   }
 
@@ -70,8 +81,15 @@ class Minimap {
   }
 
   PVector minimapToWorld(int mx, int my, TileMap map) {
-    float nx = (mx - x) / float(w);
-    float ny = (my - y) / float(h);
+    float scale = min(w / float(map.worldWidthPx()), h / float(map.worldHeightPx()));
+    float drawW = map.worldWidthPx() * scale;
+    float drawH = map.worldHeightPx() * scale;
+    float ox = x + (w - drawW) * 0.5;
+    float oy = y + (h - drawH) * 0.5;
+    float nx = (mx - ox) / max(1, drawW);
+    float ny = (my - oy) / max(1, drawH);
+    nx = constrain(nx, 0, 1);
+    ny = constrain(ny, 0, 1);
     return new PVector(nx * map.worldWidthPx(), ny * map.worldHeightPx());
   }
 }

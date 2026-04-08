@@ -50,13 +50,29 @@ class InputSystem {
         return;
       }
       if (state.buildSystem.active) {
-        state.buildSystem.queueBuildIfValid(state.map, state.buildings, state.activeFaction, state.resources);
+        boolean ok = state.buildSystem.queueBuildIfValid(state.map, state.buildings, state.activeFaction, state.resources);
+        if (ok) {
+          state.buildSystem.active = false;
+          state.ui.clearBuildButtonState();
+          state.orderLabel = "BuildPlaced";
+        }
         return;
       }
       draggingSelect = true;
       dragStart.set(world);
       dragEnd.set(world);
     } else if (button == RIGHT) {
+      if (state.buildSystem.active) {
+        state.buildSystem.active = false;
+        state.buildSystem.lastFailReason = "";
+        state.ui.clearBuildButtonState();
+        state.orderLabel = "BuildPlace(Cancel)";
+        return;
+      }
+      if (state.selectedUnits.size() == 0) {
+        state.orderLabel = "NoSelection";
+        return;
+      }
       boolean queue = keyPressed && keyCode == SHIFT;
       Unit target = state.findNearestUnitAt(world, 24);
       if (target != null && target.faction != state.activeFaction && state.selectedUnits.size() > 0) {
@@ -93,6 +109,9 @@ class InputSystem {
   }
 
   void onMouseReleased(int mx, int my, int button) {
+    if (button == LEFT) {
+      state.ui.releaseBuildButtonPress();
+    }
     if (button == LEFT && draggingMinimap) {
       draggingMinimap = false;
       return;
@@ -135,10 +154,6 @@ class InputSystem {
   }
 
   void onKeyPressed(char key, int keyCode) {
-    if (key == 'b' || key == 'B') {
-      state.buildSystem.toggle();
-      return;
-    }
     if (key == 'a' || key == 'A') {
       state.attackMoveArmed = !state.attackMoveArmed;
       state.orderLabel = state.attackMoveArmed ? "AttackMove(Armed)" : "AttackMove(Cancel)";

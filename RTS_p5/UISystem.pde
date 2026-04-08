@@ -9,17 +9,22 @@ class UISystem {
   int buildButtonCols = 2;
   int buildGridX;
   int buildCellW;
+  int hoveredBuildIndex = -1;
+  int armedBuildIndex = -1;
+  int pressedBuildIndex = -1;
+  float pressedFlashTimer = 0;
 
   UISystem(int worldViewW, int viewportH) {
     this.sidePanelX = worldViewW;
     this.sidePanelW = max(180, width - worldViewW);
     this.viewportH = viewportH;
-    minimap = new Minimap(sidePanelX + 24, 124, sidePanelW - 48, 170);
+    minimap = new Minimap(sidePanelX + 24, 120, sidePanelW - 48, 200);
     buildButtonsY = 430;
   }
 
   void render(GameState state) {
     textAlign(LEFT, TOP);
+    sidePanelW = width - sidePanelX;
     int panelMargin = 10;
     int panelX = sidePanelX + panelMargin;
     int panelW = sidePanelW - panelMargin * 2;
@@ -57,7 +62,7 @@ class UISystem {
     y += topBarH + 22;
 
     // Main tactical display zone
-    int tacticalH = 260;
+    int tacticalH = int(constrain(viewportH * 0.40, 270, 360));
     int tx = panelX + 10;
     int ty = y;
     int tw = panelW - 20;
@@ -67,7 +72,7 @@ class UISystem {
     minimap.x = tx + 14;
     minimap.y = ty + 16;
     minimap.w = tw - 28;
-    minimap.h = 118;
+    minimap.h = int(constrain(tacticalH * 0.52, 138, 192));
 
     minimap.render(state.map, state.camera, state.units, state.buildings);
 
@@ -133,7 +138,9 @@ class UISystem {
 
     buildButtonsY = y;
     buildGridX = panelX + 12;
+    buildButtonCols = panelW >= 300 ? 2 : 1;
     buildCellW = int((panelW - 28 - buildButtonGap * (buildButtonCols - 1)) / float(buildButtonCols));
+    hoveredBuildIndex = buildButtonIndexAt(mouseX, mouseY, state);
     renderBuildButtons(state);
     if (state.buildSystem.lastFailReason.length() > 0) {
       fill(255, 130, 130);
@@ -229,17 +236,41 @@ class UISystem {
       int row = i / buildButtonCols;
       int x = buildGridX + col * (buildCellW + buildButtonGap);
       int y = buildButtonsY + row * (buildButtonH + buildButtonGap);
-      boolean selected = i == state.buildSystem.selectedIndex;
-
       int thumbW = min(50, max(36, int(buildCellW * 0.42)));
       int thumbH = buildButtonH - 10;
       int thumbX = x + 6;
       int thumbY = y + 5;
       int textX = thumbX + thumbW + 8;
 
-      int baseFill = selected ? color(78, 108, 72) : color(48, 48, 48);
+      boolean armed = (state.buildSystem.active && armedBuildIndex == i);
+      boolean hovered = hoveredBuildIndex == i;
+      boolean pressed = pressedBuildIndex == i;
+
+      int baseFill = color(48, 48, 48);
+      if (armed) {
+        baseFill = color(78, 108, 72);
+      } else if (hovered) {
+        baseFill = color(62, 62, 62);
+      }
+      if (pressed) {
+        baseFill = color(95, 130, 85);
+      }
       drawChamferFill(x, y, buildCellW, buildButtonH, cellChamfer, baseFill);
-      drawChamferStroke(x, y, buildCellW, buildButtonH, cellChamfer, selected ? color(130, 240, 130) : color(70, 70, 70), selected ? 2 : 1);
+
+      int strokeCol = color(70, 70, 70);
+      float strokeW = 1;
+      if (hovered) {
+        strokeCol = color(120, 170, 120);
+      }
+      if (armed) {
+        strokeCol = color(130, 240, 130);
+        strokeW = 2;
+      }
+      if (pressed) {
+        strokeCol = color(170, 255, 170);
+        strokeW = 2;
+      }
+      drawChamferStroke(x, y, buildCellW, buildButtonH, cellChamfer, strokeCol, strokeW);
 
       renderBlueprintThumb(def, thumbX, thumbY, thumbW, thumbH);
 
@@ -257,17 +288,42 @@ class UISystem {
     if (minimap.contains(mx, my)) {
       return false;
     }
+    int idx = buildButtonIndexAt(mx, my, state);
+    if (idx >= 0) {
+      state.buildSystem.selectIndex(idx);
+      state.buildSystem.active = true;
+      state.buildSystem.lastFailReason = "";
+      state.orderLabel = "BuildPlace(Armed)";
+      armedBuildIndex = idx;
+      pressedBuildIndex = idx;
+      pressedFlashTimer = 0;
+      return true;
+    }
+    return mx >= sidePanelX;
+  }
+
+  int buildButtonIndexAt(int mx, int my, GameState state) {
     for (int i = 0; i < state.buildSystem.defs.size(); i++) {
       int col = i % buildButtonCols;
       int row = i / buildButtonCols;
       int x = buildGridX + col * (buildCellW + buildButtonGap);
       int y = buildButtonsY + row * (buildButtonH + buildButtonGap);
       if (mx >= x && mx <= x + buildCellW && my >= y && my <= y + buildButtonH) {
-        state.buildSystem.selectIndex(i);
-        state.buildSystem.lastFailReason = "";
-        return true;
+        return i;
       }
     }
-    return mx >= sidePanelX;
+    return -1;
+  }
+
+  void clearBuildButtonState() {
+    hoveredBuildIndex = -1;
+    armedBuildIndex = -1;
+    pressedBuildIndex = -1;
+    pressedFlashTimer = 0;
+  }
+
+  void releaseBuildButtonPress() {
+    pressedBuildIndex = -1;
+    pressedFlashTimer = 0;
   }
 }

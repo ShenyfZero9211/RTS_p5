@@ -2,6 +2,10 @@ class GameState {
   int screenW;
   int screenH;
   int worldViewW;
+  int sidePanelW;
+  float sidePanelWidthRatio = 0.24;
+  int sidePanelMinW = 300;
+  int sidePanelMaxW = 460;
 
   TileMap map;
   Camera camera;
@@ -28,7 +32,9 @@ class GameState {
   GameState(int screenW, int screenH) {
     this.screenW = screenW;
     this.screenH = screenH;
-    this.worldViewW = screenW - 260;
+    loadUiSettings();
+    this.sidePanelW = int(constrain(screenW * sidePanelWidthRatio, sidePanelMinW, sidePanelMaxW));
+    this.worldViewW = screenW - sidePanelW;
 
     map = new TileMap();
     if (!map.loadFromJson("map_test.json")) {
@@ -79,6 +85,19 @@ class GameState {
     e.completed = true;
     e.buildProgress = e.buildTime;
     buildings.add(e);
+  }
+
+  void loadUiSettings() {
+    JSONObject root = loadJSONObject("ui.json");
+    if (root == null) {
+      return;
+    }
+    sidePanelWidthRatio = root.getFloat("sidePanelWidthRatio", sidePanelWidthRatio);
+    sidePanelMinW = root.getInt("sidePanelMinW", sidePanelMinW);
+    sidePanelMaxW = root.getInt("sidePanelMaxW", sidePanelMaxW);
+    sidePanelWidthRatio = constrain(sidePanelWidthRatio, 0.12, 0.45);
+    sidePanelMinW = max(180, sidePanelMinW);
+    sidePanelMaxW = max(sidePanelMinW, sidePanelMaxW);
   }
 
   void loadDefinitions() {
