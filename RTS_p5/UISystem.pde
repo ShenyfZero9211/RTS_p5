@@ -12,6 +12,14 @@ class UISystem {
   int hoveredBuildIndex = -1;
   int armedBuildIndex = -1;
   int pressedBuildIndex = -1;
+  int hoveredTrainIndex = -1;
+  int pressedTrainIndex = -1;
+  int panelTabMode = 0; // 0: buildings, 1: units
+  int tabBuildingsX;
+  int tabUnitsX;
+  int tabY;
+  int tabW;
+  int tabH;
   float pressedFlashTimer = 0;
 
   UISystem(int worldViewW, int viewportH) {
@@ -74,7 +82,7 @@ class UISystem {
     minimap.w = tw - 28;
     minimap.h = int(constrain(tacticalH * 0.52, 138, 192));
 
-    minimap.render(state.map, state.camera, state.units, state.buildings);
+    minimap.render(state.map, state.camera, state.units, state.buildings, state);
 
     int contentX = tx + 14;
     int contentW = tw - 28;
@@ -101,6 +109,8 @@ class UISystem {
     text("A:" + (state.attackMoveArmed ? "ON" : "OFF") + "  L:" + (state.hardCursorLock ? "ON" : "OFF") + "  P:" + (state.debugShowPaths ? "ON" : "OFF"), contentX, infoY);
     infoY += lineH;
     text("LMB Select/Place  RMB Move/Attack", contentX, infoY);
+    infoY += lineH;
+    text("Q/W/E train Miner/Rifle/Rocket", contentX, infoY);
     infoY += lineH + 4;
 
     float p = state.buildSystem.currentProgress01();
@@ -121,28 +131,38 @@ class UISystem {
     int tabsH = 30;
     int tabx = panelX + 10;
     int tabw = panelW - 20;
-    drawChamferFill(tabx, y, tabw, tabsH, innerChamfer, color(22, 22, 22));
-    drawChamferStroke(tabx, y, tabw, tabsH, innerChamfer, color(80, 80, 80), 1);
-
-    fill(230, 210, 90);
-    textSize(16);
-    text("B", tabx + 14, y + 7);
-    fill(90, 170, 255);
-    text("U", tabx + 44, y + 7);
-    fill(255, 120, 120);
-    text("P", tabx + 74, y + 7);
-    fill(190);
-    textSize(11);
-    text("Blueprints", tabx + 108, y + 9);
+    tabY = y;
+    tabW = int((tabw - 6) * 0.5);
+    tabH = tabsH;
+    tabBuildingsX = tabx;
+    tabUnitsX = tabx + tabW + 6;
+    boolean showBuildings = panelTabMode == 0;
+    drawChamferFill(tabBuildingsX, tabY, tabW, tabH, innerChamfer, showBuildings ? color(70, 102, 74) : color(28, 28, 28));
+    drawChamferStroke(tabBuildingsX, tabY, tabW, tabH, innerChamfer, showBuildings ? color(150, 245, 150) : color(88, 88, 88), showBuildings ? 2 : 1);
+    drawChamferFill(tabUnitsX, tabY, tabW, tabH, innerChamfer, showBuildings ? color(28, 28, 28) : color(72, 82, 110));
+    drawChamferStroke(tabUnitsX, tabY, tabW, tabH, innerChamfer, showBuildings ? color(88, 88, 88) : color(140, 190, 255), showBuildings ? 1 : 2);
+    fill(230);
+    textSize(12);
+    textAlign(CENTER, CENTER);
+    text("BUILDINGS", tabBuildingsX + tabW * 0.5, tabY + tabH * 0.52);
+    text("UNITS", tabUnitsX + tabW * 0.5, tabY + tabH * 0.52);
+    textAlign(LEFT, TOP);
     y += tabsH + 10;
 
     buildButtonsY = y;
     buildGridX = panelX + 12;
     buildButtonCols = panelW >= 300 ? 2 : 1;
     buildCellW = int((panelW - 28 - buildButtonGap * (buildButtonCols - 1)) / float(buildButtonCols));
-    hoveredBuildIndex = buildButtonIndexAt(mouseX, mouseY, state);
-    renderBuildButtons(state);
-    if (state.buildSystem.lastFailReason.length() > 0) {
+    if (panelTabMode == 0) {
+      hoveredBuildIndex = buildButtonIndexAt(mouseX, mouseY, state);
+      hoveredTrainIndex = -1;
+      renderBuildButtons(state);
+    } else {
+      hoveredBuildIndex = -1;
+      hoveredTrainIndex = trainButtonIndexAt(mouseX, mouseY, state);
+      renderTrainButtons(state);
+    }
+    if (state.buildSystem.lastFailReason.length() > 0 && panelTabMode == 0) {
       fill(255, 130, 130);
       textSize(11);
       text("Build error: " + state.buildSystem.lastFailReason, panelX + 14, buildButtonsY - 18);
@@ -245,9 +265,12 @@ class UISystem {
       boolean armed = (state.buildSystem.active && armedBuildIndex == i);
       boolean hovered = hoveredBuildIndex == i;
       boolean pressed = pressedBuildIndex == i;
+      boolean unlocked = state.buildSystem.canBuildDefForFaction(def, state.buildings, state.activeFaction);
 
       int baseFill = color(48, 48, 48);
-      if (armed) {
+      if (!unlocked) {
+        baseFill = color(38, 38, 38);
+      } else if (armed) {
         baseFill = color(78, 108, 72);
       } else if (hovered) {
         baseFill = color(62, 62, 62);
@@ -257,16 +280,16 @@ class UISystem {
       }
       drawChamferFill(x, y, buildCellW, buildButtonH, cellChamfer, baseFill);
 
-      int strokeCol = color(70, 70, 70);
+      int strokeCol = unlocked ? color(70, 70, 70) : color(55, 55, 55);
       float strokeW = 1;
-      if (hovered) {
+      if (hovered && unlocked) {
         strokeCol = color(120, 170, 120);
       }
-      if (armed) {
+      if (armed && unlocked) {
         strokeCol = color(130, 240, 130);
         strokeW = 2;
       }
-      if (pressed) {
+      if (pressed && unlocked) {
         strokeCol = color(170, 255, 170);
         strokeW = 2;
       }
@@ -274,22 +297,56 @@ class UISystem {
 
       renderBlueprintThumb(def, thumbX, thumbY, thumbW, thumbH);
 
-      fill(240);
+      fill(unlocked ? 240 : 140);
       textSize(11);
       text(def.id.toUpperCase(), textX, y + 8);
-      fill(200);
+      fill(unlocked ? 200 : 120);
       text("$" + def.cost, textX, y + 24);
-      fill(175);
+      fill(unlocked ? 175 : 105);
       text(def.tileW + " x " + def.tileH, textX, y + 38);
+
+      if (!unlocked) {
+        fill(255, 120, 120);
+        textSize(10);
+        text("LOCKED", x + buildCellW - 44, y + 4);
+      }
     }
   }
 
   boolean handleClick(GameState state, int mx, int my) {
+    if (mx >= tabBuildingsX && mx <= tabBuildingsX + tabW && my >= tabY && my <= tabY + tabH) {
+      panelTabMode = 0;
+      state.orderLabel = "UI:BuildingsTab";
+      return true;
+    }
+    if (mx >= tabUnitsX && mx <= tabUnitsX + tabW && my >= tabY && my <= tabY + tabH) {
+      panelTabMode = 1;
+      state.orderLabel = "UI:UnitsTab";
+      return true;
+    }
     if (minimap.contains(mx, my)) {
       return false;
     }
+    if (panelTabMode == 1) {
+      int tidx = trainButtonIndexAt(mx, my, state);
+      if (tidx >= 0) {
+        String[] ids = {
+          "miner", "rifleman", "rocketeer"
+        };
+        String id = ids[tidx];
+        pressedTrainIndex = tidx;
+        state.trainUnitAtSelectedBuilding(id);
+        return true;
+      }
+      return mx >= sidePanelX;
+    }
     int idx = buildButtonIndexAt(mx, my, state);
     if (idx >= 0) {
+      BuildingDef def = state.buildSystem.defs.get(idx);
+      if (!state.buildSystem.canBuildDefForFaction(def, state.buildings, state.activeFaction)) {
+        state.buildSystem.lastFailReason = "Need prerequisite";
+        return true;
+      }
       state.buildSystem.selectIndex(idx);
       state.buildSystem.active = true;
       state.buildSystem.lastFailReason = "";
@@ -319,11 +376,94 @@ class UISystem {
     hoveredBuildIndex = -1;
     armedBuildIndex = -1;
     pressedBuildIndex = -1;
+    hoveredTrainIndex = -1;
+    pressedTrainIndex = -1;
     pressedFlashTimer = 0;
   }
 
   void releaseBuildButtonPress() {
     pressedBuildIndex = -1;
+    pressedTrainIndex = -1;
     pressedFlashTimer = 0;
+  }
+
+  int trainButtonIndexAt(int mx, int my, GameState state) {
+    int rows = 3;
+    for (int i = 0; i < rows; i++) {
+      int col = i % buildButtonCols;
+      int row = i / buildButtonCols;
+      int x = buildGridX + col * (buildCellW + buildButtonGap);
+      int y = buildButtonsY + row * (buildButtonH + buildButtonGap);
+      if (mx >= x && mx <= x + buildCellW && my >= y && my <= y + buildButtonH) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  void renderTrainButtons(GameState state) {
+    String[] ids = {
+      "miner", "rifleman", "rocketeer"
+    };
+    String[] names = {
+      "MINER", "RIFLE", "ROCKET"
+    };
+    String[] hotkeys = {
+      "Q", "W", "E"
+    };
+    boolean hasBarracks = false;
+    for (Building b : state.buildings) {
+      if (b.faction == state.activeFaction && b.completed && b.buildingType.equals("barracks")) {
+        hasBarracks = true;
+        break;
+      }
+    }
+    float cellChamfer = 4;
+    for (int i = 0; i < ids.length; i++) {
+      UnitDef def = state.getUnitDef(ids[i]);
+      if (def == null) {
+        continue;
+      }
+      int col = i % buildButtonCols;
+      int row = i / buildButtonCols;
+      int x = buildGridX + col * (buildCellW + buildButtonGap);
+      int y = buildButtonsY + row * (buildButtonH + buildButtonGap);
+      boolean hovered = hoveredTrainIndex == i;
+      boolean pressed = pressedTrainIndex == i;
+      boolean unlocked = hasBarracks && state.resources.canAfford(def.cost);
+
+      int baseFill = color(48, 48, 48);
+      if (!hasBarracks) {
+        baseFill = color(38, 34, 34);
+      } else if (!state.resources.canAfford(def.cost)) {
+        baseFill = color(40, 40, 40);
+      } else if (hovered) {
+        baseFill = color(58, 68, 92);
+      }
+      if (pressed && unlocked) {
+        baseFill = color(85, 110, 150);
+      }
+      drawChamferFill(x, y, buildCellW, buildButtonH, cellChamfer, baseFill);
+      int strokeCol = unlocked ? color(95, 130, 190) : color(70, 70, 70);
+      float strokeW = (hovered && unlocked) ? 2 : 1;
+      drawChamferStroke(x, y, buildCellW, buildButtonH, cellChamfer, strokeCol, strokeW);
+
+      fill(unlocked ? 238 : 140);
+      textSize(11);
+      text(names[i], x + 8, y + 8);
+      fill(unlocked ? 200 : 120);
+      text("$" + def.cost + "   [" + hotkeys[i] + "]", x + 8, y + 24);
+      fill(unlocked ? 175 : 110);
+      text("HP " + def.hp + "  RNG " + int(def.attackRange), x + 8, y + 38);
+      if (!hasBarracks) {
+        fill(255, 120, 120);
+        textSize(10);
+        text("NEED BARRACKS", x + buildCellW - 82, y + 4);
+      } else if (!state.resources.canAfford(def.cost)) {
+        fill(255, 150, 130);
+        textSize(10);
+        text("LOW CREDITS", x + buildCellW - 64, y + 4);
+      }
+    }
   }
 }

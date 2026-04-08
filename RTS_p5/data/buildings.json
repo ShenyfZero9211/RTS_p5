@@ -1,18 +1,56 @@
 {
   "buildings": [
     {
-      "id": "outpost",
+      "id": "base",
+      "category": "core",
+      "tileW": 3,
+      "tileH": 3,
+      "buildTime": 4.0,
+      "cost": 0,
+      "requires": [],
+      "canTrainUnits": false,
+      "trainableUnits": [],
+      "isDropoff": false,
+      "isMainBase": true
+    },
+    {
+      "id": "mine",
+      "category": "economy",
+      "tileW": 2,
+      "tileH": 2,
+      "buildTime": 4.0,
+      "cost": 120,
+      "requires": ["base"],
+      "canTrainUnits": false,
+      "trainableUnits": [],
+      "isDropoff": true,
+      "isMainBase": false
+    },
+    {
+      "id": "barracks",
+      "category": "military",
+      "tileW": 3,
+      "tileH": 2,
+      "buildTime": 6.0,
+      "cost": 180,
+      "requires": ["base", "depot"],
+      "canTrainUnits": true,
+      "trainableUnits": ["miner", "rifleman", "rocketeer"],
+      "isDropoff": false,
+      "isMainBase": false
+    },
+    {
+      "id": "depot",
+      "category": "supply",
       "tileW": 2,
       "tileH": 2,
       "buildTime": 3.0,
-      "cost": 120
-    },
-    {
-      "id": "factory",
-      "tileW": 3,
-      "tileH": 2,
-      "buildTime": 5.0,
-      "cost": 260
+      "cost": 90,
+      "requires": ["base"],
+      "canTrainUnits": false,
+      "trainableUnits": [],
+      "isDropoff": false,
+      "isMainBase": false
     }
   ]
 }

@@ -3,6 +3,7 @@ class Camera {
   float y;
   float speed = 480;
   float zoom = 1.0;
+  float wheelZoomStep = 1.08;
   float minZoom = 0.6;
   float maxZoom = 2.2;
   int viewportW;
@@ -69,7 +70,7 @@ class Camera {
 
   void zoomAt(float wheelAmount, float focusScreenX, float focusScreenY) {
     PVector focusWorldBefore = screenToWorld(focusScreenX, focusScreenY);
-    zoom *= pow(1.08, -wheelAmount);
+    zoom *= pow(wheelZoomStep, -wheelAmount);
     zoom = constrain(zoom, effectiveMinZoom(), maxZoom);
     x = focusWorldBefore.x - focusScreenX / zoom;
     y = focusWorldBefore.y - focusScreenY / zoom;

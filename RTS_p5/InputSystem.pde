@@ -23,6 +23,9 @@ class InputSystem {
   }
 
   void onMousePressed(int mx, int my, int button) {
+    if (state.gameEnded) {
+      return;
+    }
     if (button == LEFT && mx >= state.worldViewW) {
       if (state.ui.handleClick(state, mx, my)) {
         return;
@@ -74,18 +77,24 @@ class InputSystem {
         return;
       }
       boolean queue = keyPressed && keyCode == SHIFT;
+      if (state.issueHarvestOrderToSelectedMiners(world)) {
+        return;
+      }
       Unit target = state.findNearestUnitAt(world, 24);
       if (target != null && target.faction != state.activeFaction && state.selectedUnits.size() > 0) {
+        state.clearSelectedHarvestOrders();
         state.commandSystem.attackSelected(state.selectedUnits, target);
         state.orderLabel = "Attack";
         state.addOrderMarker(target.pos.copy(), true);
       } else {
         if (state.attackMoveArmed) {
+          state.clearSelectedHarvestOrders();
           state.commandSystem.attackMoveSelected(state, state.selectedUnits, world, queue);
           state.orderLabel = "AttackMove";
           state.addOrderMarker(world, true);
           state.attackMoveArmed = false;
         } else {
+          state.clearSelectedHarvestOrders();
           state.commandSystem.moveSelected(state, state.selectedUnits, world, queue);
           state.orderLabel = queue ? "QueueMove" : "Move";
           state.addOrderMarker(world, false);
@@ -154,6 +163,21 @@ class InputSystem {
   }
 
   void onKeyPressed(char key, int keyCode) {
+    if (state.gameEnded) {
+      return;
+    }
+    if (key == 'q' || key == 'Q') {
+      state.trainUnitAtSelectedBuilding("miner");
+      return;
+    }
+    if (key == 'w' || key == 'W') {
+      state.trainUnitAtSelectedBuilding("rifleman");
+      return;
+    }
+    if (key == 'e' || key == 'E') {
+      state.trainUnitAtSelectedBuilding("rocketeer");
+      return;
+    }
     if (key == 'a' || key == 'A') {
       state.attackMoveArmed = !state.attackMoveArmed;
       state.orderLabel = state.attackMoveArmed ? "AttackMove(Armed)" : "AttackMove(Cancel)";
@@ -173,8 +197,6 @@ class InputSystem {
       state.activeFaction = Faction.PLAYER;
     } else if (key == '2') {
       state.activeFaction = Faction.ENEMY;
-    } else if (key == '3') {
-      state.activeFaction = Faction.NEUTRAL;
     }
   }
 

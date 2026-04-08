@@ -4,6 +4,7 @@ class TileMap {
   int heightTiles;
   int[][] terrain;
   boolean[][] blocked;
+  boolean disableStaticObstacles = false;
 
   boolean loadFromJson(String fileName) {
     JSONObject root = loadJSONObject(fileName);
@@ -15,6 +16,7 @@ class TileMap {
     widthTiles = root.getInt("width");
     heightTiles = root.getInt("height");
 
+    disableStaticObstacles = root.getBoolean("disableStaticObstacles", false);
     terrain = new int[heightTiles][widthTiles];
     blocked = new boolean[heightTiles][widthTiles];
     JSONArray rows = root.getJSONArray("rows");
@@ -28,6 +30,9 @@ class TileMap {
           t = 1;
         } else if (c == 'B') {
           t = 2;
+        }
+        if (disableStaticObstacles) {
+          t = 0;
         }
         terrain[y][x] = t;
         blocked[y][x] = (t == 2);

@@ -1,10 +1,58 @@
 {
   "units": [
     {
-      "id": "scout",
-      "speed": 120,
+      "id": "miner",
+      "role": "miner",
+      "speed": 98,
       "radius": 11,
-      "hp": 100
+      "hp": 90,
+      "attackRange": 24,
+      "attackDamage": 2,
+      "attackCooldown": 1.0,
+      "cost": 50,
+      "trainTime": 2.2,
+      "sightRange": 200,
+      "usesProjectile": false,
+      "projectileSpeed": 0,
+      "canHarvest": true,
+      "harvestAmount": 25,
+      "harvestTime": 1.2
+    },
+    {
+      "id": "rifleman",
+      "role": "machinegun",
+      "speed": 112,
+      "radius": 11,
+      "hp": 100,
+      "attackRange": 120,
+      "attackDamage": 7,
+      "attackCooldown": 0.28,
+      "cost": 80,
+      "trainTime": 2.8,
+      "sightRange": 240,
+      "usesProjectile": false,
+      "projectileSpeed": 0,
+      "canHarvest": false,
+      "harvestAmount": 0,
+      "harvestTime": 0
+    },
+    {
+      "id": "rocketeer",
+      "role": "rocket",
+      "speed": 102,
+      "radius": 11,
+      "hp": 95,
+      "attackRange": 165,
+      "attackDamage": 26,
+      "attackCooldown": 1.35,
+      "cost": 130,
+      "trainTime": 4.0,
+      "sightRange": 255,
+      "usesProjectile": true,
+      "projectileSpeed": 290,
+      "canHarvest": false,
+      "harvestAmount": 0,
+      "harvestTime": 0
     }
   ]
 }

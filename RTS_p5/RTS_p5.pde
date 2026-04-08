@@ -2,11 +2,13 @@ GameState game;
 int lastMillis;
 
 void settings() {
+  pixelDensity(1);
   fullScreen();
 }
 
 void setup() {
   surface.setTitle("RTS_p5 MVP");
+  surface.setResizable(false);
   rectMode(CORNER);
   textAlign(LEFT, TOP);
   game = new GameState(width, height);

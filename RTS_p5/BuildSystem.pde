@@ -68,6 +68,30 @@ class BuildSystem {
     return true;
   }
 
+  boolean hasRequiredBuildings(BuildingDef def, ArrayList<Building> buildings, Faction faction) {
+    if (def == null || def.prerequisites == null || def.prerequisites.length == 0) {
+      return true;
+    }
+    for (int i = 0; i < def.prerequisites.length; i++) {
+      String req = def.prerequisites[i];
+      boolean ok = false;
+      for (Building b : buildings) {
+        if (b.faction == faction && b.completed && b.buildingType.equals(req)) {
+          ok = true;
+          break;
+        }
+      }
+      if (!ok) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  boolean canBuildDefForFaction(BuildingDef def, ArrayList<Building> buildings, Faction faction) {
+    return hasRequiredBuildings(def, buildings, faction);
+  }
+
   boolean queueBuildIfValid(TileMap map, ArrayList<Building> buildings, Faction faction, ResourcePool resources) {
     BuildingDef def = selectedDef();
     if (def == null) {
@@ -76,6 +100,10 @@ class BuildSystem {
     }
     if (!resources.canAfford(def.cost)) {
       lastFailReason = "Not enough credits";
+      return false;
+    }
+    if (!hasRequiredBuildings(def, buildings, faction)) {
+      lastFailReason = "Prerequisite missing";
       return false;
     }
     if (!canPlace(map, buildings)) {

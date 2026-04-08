@@ -1,5 +1,19 @@
 {
   "sidePanelWidthRatio": 0.21,
   "sidePanelMinW": 270,
-  "sidePanelMaxW": 400
+  "sidePanelMaxW": 400,
+  "wheelZoomStep": 1.08,
+  "edgeScrollSpeed": 800,
+  "fogEnabled": true,
+  "fogSoftEdges": true,
+  "fogEdgeRadius": 2,
+  "fogEdgeStrength": 0.4,
+  "fogUpdateInterval": 0.1,
+  "fogBatchSourcesPerFrame": 18,
+  "fogAutoAdaptiveInterval": true,
+  "fogAutoAdaptiveThreshold": 12,
+  "fogAutoAdaptiveStep": 0.004,
+  "fogAutoAdaptiveMaxInterval": 0.22,
+  "fogUnexploredAlpha": 220,
+  "fogExploredAlpha": 120
 }

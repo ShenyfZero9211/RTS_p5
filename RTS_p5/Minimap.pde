@@ -11,7 +11,7 @@ class Minimap {
     this.h = h;
   }
 
-  void render(TileMap map, Camera camera, ArrayList<Unit> units, ArrayList<Building> buildings) {
+  void render(TileMap map, Camera camera, ArrayList<Unit> units, ArrayList<Building> buildings, GameState gs) {
     noStroke();
     fill(18);
     rect(x, y, w, h);
@@ -49,6 +49,9 @@ class Minimap {
     }
 
     for (Building b : buildings) {
+      if (gs != null && !gs.isBuildingVisibleToPlayer(b)) {
+        continue;
+      }
       fill(factionColor(b.faction));
       float bx = ox + b.pos.x * scale;
       float by = oy + b.pos.y * scale;
@@ -56,11 +59,40 @@ class Minimap {
     }
 
     for (Unit u : units) {
+      if (gs != null && !gs.isUnitVisibleToPlayer(u)) {
+        continue;
+      }
       fill(factionColor(u.faction));
       float ux = ox + u.pos.x * scale;
       float uy = oy + u.pos.y * scale;
       float d = max(2, 3 * scale / min(scaleX, scaleY));
       rect(ux - d * 0.5, uy - d * 0.5, d, d);
+    }
+
+    if (gs != null && gs.fogEnabled && gs.fog != null) {
+      noStroke();
+      for (int ty = 0; ty < map.heightTiles; ty += step) {
+        for (int tx = 0; tx < map.widthTiles; tx += step) {
+          float wx = (tx + 0.5) * map.tileSize;
+          float wy = (ty + 0.5) * map.tileSize;
+          int alpha = -1;
+          if (!gs.fog.isWorldExplored(map, wx, wy)) {
+            alpha = gs.fogUnexploredAlpha;
+          } else if (!gs.fog.isWorldVisible(map, wx, wy)) {
+            alpha = gs.fogExploredAlpha;
+            if (gs.fogSoftEdges) {
+              alpha = int(alpha * gs.fog.edgeFadeFactor(tx, ty, map, gs.fogEdgeRadius, gs.fogEdgeStrength));
+            }
+          }
+          if (alpha <= 0) {
+            continue;
+          }
+          fill(0, 0, 0, alpha);
+          float px = ox + tx * map.tileSize * scale;
+          float py = oy + ty * map.tileSize * scale;
+          rect(px, py, map.tileSize * scale * step, map.tileSize * scale * step);
+        }
+      }
     }
 
     noFill();
