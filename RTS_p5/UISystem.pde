@@ -138,6 +138,25 @@ class UISystem {
       cy = uiWidgets.drawLineClamped(tr("ui.waveTimer") + ": " + nf(state.enemyAi.attackTimer, 1, 1) + "  " + tr("ui.last") + ": " + state.enemyAi.lastAction, contentX, cy, contentW, 12);
       fill(230);
     }
+    if (state.benchmarkScenarioActive) {
+      if (state.benchmarkReinforceFlashTimer > 0) {
+        fill(255, 205, 110);
+      } else {
+        fill(185, 205, 225);
+      }
+      cy = uiWidgets.drawLineClamped(
+        "BENCH " + state.benchmarkIntensity.toUpperCase() +
+        "  wave#" + state.benchmarkWaveSerial +
+        "  next " + nf(max(0, state.benchmarkReinforceTimer), 1, 1) + "s",
+        contentX, cy, contentW, 12
+      );
+      cy = uiWidgets.drawLineClamped(
+        "Reinforce  P+" + state.benchmarkLastPlayerReinforce +
+        "  E+" + state.benchmarkLastEnemyReinforce,
+        contentX, cy, contentW, 12
+      );
+      fill(230);
+    }
     if (state.selectedBuilding != null) {
       Building sb = state.selectedBuilding;
       BuildingDef bdef = state.getBuildingDef(sb.buildingType);
@@ -274,6 +293,30 @@ class UISystem {
       fill(255, 130, 130);
       textSize(11);
       text(tr("ui.buildError") + ": " + state.buildSystem.lastFailReason, panelX + 14, buildButtonsY - 18);
+    }
+    if (state.showRuntimeProfiling) {
+      int px = panelX + 12;
+      int py = viewportH - 112;
+      int pw = panelW - 24;
+      int ph = 96;
+      fill(8, 10, 14, 210);
+      stroke(80, 110, 150, 200);
+      rect(px, py, pw, ph, 6);
+      noStroke();
+      fill(200, 220, 240);
+      textSize(10);
+      textAlign(LEFT, TOP);
+      text("FPS " + nf(frameRate, 1, 1) +
+        " | Frame " + nf(state.profileFrameMs, 1, 2) + "ms", px + 8, py + 6);
+      fill(165, 195, 220);
+      text("Input " + nf(state.profileInputMs, 1, 2) +
+        "  Build " + nf(state.profileBuildMs, 1, 2) +
+        "  Units " + nf(state.profileUnitsMs, 1, 2), px + 8, py + 24);
+      text("Fog " + nf(state.profileFogMs, 1, 2) +
+        "  Combat " + nf(state.profileCombatMs, 1, 2) +
+        "  AI " + nf(state.profileAiMs, 1, 2) +
+        "  UI " + nf(state.profileUiMs, 1, 2), px + 8, py + 42);
+      text("Steps fixed@" + state.profileStepHzLabel() + "  FogBudget " + nf(state.fogUpdateBudgetMs, 1, 1) + "ms", px + 8, py + 60);
     }
   }
 

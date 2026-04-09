@@ -1,4 +1,18 @@
 class EffectsRuntime {
+  float densityKeepProbability(GameState gs) {
+    if (gs == null) return 1.0;
+    if (gs.fxDensityLevel <= 0) return 0.35;
+    if (gs.fxDensityLevel == 1) return 0.65;
+    if (gs.fxDensityLevel == 2) return 1.0;
+    return 1.4;
+  }
+
+  boolean isOnScreen(Camera camera, PVector world, float margin) {
+    if (camera == null || world == null) return false;
+    PVector s = camera.worldToScreen(world.x, world.y);
+    return s.x >= -margin && s.y >= -margin && s.x <= camera.viewportW + margin && s.y <= camera.viewportH + margin;
+  }
+
   void updateOrderMarkers(GameState gs, float dt) {
     for (int i = gs.orderMarkers.size() - 1; i >= 0; i--) {
       OrderMarker m = gs.orderMarkers.get(i);
@@ -11,11 +25,14 @@ class EffectsRuntime {
 
   void renderOrderMarkers(GameState gs) {
     for (OrderMarker m : gs.orderMarkers) {
-      m.render(gs.camera);
+      if (isOnScreen(gs.camera, m.pos, 48)) {
+        m.render(gs.camera);
+      }
     }
   }
 
   void spawnMuzzleFx(GameState gs, Unit shooter, PVector targetPos) {
+    if (random(1) > min(1.0, densityKeepProbability(gs))) return;
     gs.muzzleFx.add(new MuzzleFx(shooter.pos.copy(), targetPos));
   }
 
@@ -31,12 +48,15 @@ class EffectsRuntime {
 
   void renderMuzzleFx(GameState gs) {
     for (MuzzleFx fx : gs.muzzleFx) {
-      fx.render(gs.camera);
+      if (isOnScreen(gs.camera, fx.startPos, 64) || isOnScreen(gs.camera, fx.endPos, 64)) {
+        fx.render(gs.camera);
+      }
     }
   }
 
   void spawnDeliveryFx(GameState gs, PVector worldPos, int amount) {
     if (amount <= 0) return;
+    if (random(1) > min(1.0, densityKeepProbability(gs))) return;
     gs.deliveries.add(new DeliveryFx(worldPos.copy(), amount));
   }
 
@@ -52,7 +72,9 @@ class EffectsRuntime {
 
   void renderDeliveryFx(GameState gs) {
     for (DeliveryFx fx : gs.deliveries) {
-      fx.render(gs.camera);
+      if (isOnScreen(gs.camera, fx.pos, 48)) {
+        fx.render(gs.camera);
+      }
     }
   }
 }

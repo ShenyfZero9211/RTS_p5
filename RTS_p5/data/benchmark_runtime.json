@@ -1,0 +1,14 @@
+{
+  "enabled": false,
+  "autoStartGame": true,
+  "autoExit": true,
+  "durationSec": 120,
+  "warmupSec": 10,
+  "orbitPeriodSec": 24,
+  "runId": "",
+  "battleIntensity": "heavy",
+  "troopProfile": "balanced",
+  "reinforceIntervalSec": -1,
+  "reinforceCountPerFaction": -1,
+  "outputCsv": "benchmarks/runtime_metrics.csv"
+}

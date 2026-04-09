@@ -64,14 +64,19 @@ class FogSystem {
   }
 
   void processRebuildBatch(GameState gs) {
-    // Always finish all sources in one call: partial batches left visible stale vs explored and caused edge flicker.
-    int batch = max(max(1, gs.fogBatchSourcesPerFrame), activeSources.size());
+    // Respect per-frame fog budget to avoid long stalls in heavy scenes.
+    int batch = max(1, gs.fogBatchSourcesPerFrame);
     int processed = 0;
     TileMap map = gs.map;
+    float budgetMs = max(0.1, gs.fogUpdateBudgetMs);
+    long budgetStart = System.nanoTime();
     while (processed < batch && rebuildCursor < activeSources.size()) {
       FogVisionSource s = activeSources.get(rebuildCursor++);
       markCircleSource(s, map);
       processed++;
+      if ((System.nanoTime() - budgetStart) / 1000000.0 >= budgetMs) {
+        break;
+      }
     }
 
     if (rebuildCursor < activeSources.size()) {

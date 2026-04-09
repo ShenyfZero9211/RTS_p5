@@ -95,15 +95,18 @@ class MainMenuSystem {
       text(fogL, cx, startY - 40);
       String speedL = tr("menu.speed") + ": " + (engine != null ? engine.currentGameSpeedLabel() : "1.00x");
       text(speedL, cx, startY - 20);
+      String profileL = tr("menu.profiling") + ": " + (engine != null ? engine.profilingOverlayLabel() : "OFF");
+      text(profileL, cx, startY);
       String cred = tr("ui.faction") + " PLAYER $" + (gs != null ? gs.playerStartCredits : 0);
-      text(cred, cx, startY);
+      text(cred, cx, startY + 20);
 
       addMenuButton(cx - btnW * 0.5, startY + 16, btnW, btnH, tr("menu.fog.toggle"), tr("menu.fog.toggle.sub"), "menu:fog", 3);
       addMenuButton(cx - btnW * 0.5, startY + 16 + (btnH + gap), btnW, btnH, tr("menu.speed"), tr("menu.speed.sub"), "menu:speed", 3);
+      addMenuButton(cx - btnW * 0.5, startY + 16 + (btnH + gap) * 2, btnW, btnH, tr("menu.profiling"), tr("menu.profiling.sub"), "menu:profiling", 3);
 
       int langIdx = currentLangIndex();
       String[] langOptions = {tr("menu.lang.auto"), tr("menu.lang.zh"), tr("menu.lang.en")};
-      float dropdownY = startY + 16 + (btnH + gap) * 2;
+      float dropdownY = startY + 16 + (btnH + gap) * 3;
       langDropdown.x = cx - btnW * 0.5;
       langDropdown.y = dropdownY;
       langDropdown.w = btnW;
@@ -235,6 +238,10 @@ class MainMenuSystem {
     }
     if ("menu:speed".equals(action) && engine != null) {
       engine.cycleGameSpeed();
+      return;
+    }
+    if ("menu:profiling".equals(action) && engine != null) {
+      engine.toggleProfilingOverlay();
       return;
     }
   }

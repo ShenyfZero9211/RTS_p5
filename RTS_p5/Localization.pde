@@ -35,6 +35,8 @@ class Localization {
     put("menu.fog.toggle.sub", "预览开关", "Preview toggle");
     put("menu.speed", "游戏速度", "Game speed");
     put("menu.speed.sub", "切换速度倍率", "Cycle speed multiplier");
+    put("menu.profiling", "性能面板", "Profiling overlay");
+    put("menu.profiling.sub", "切换运行时调试显示", "Toggle runtime debug overlay");
     put("menu.lang.auto", "语言：系统默认", "Language: System default");
     put("menu.lang.zh", "语言：中文", "Language: Chinese");
     put("menu.lang.en", "语言：英文", "Language: English");
@@ -134,7 +136,10 @@ class Localization {
   }
 
   void saveUserSettings() {
-    JSONObject root = new JSONObject();
+    JSONObject root = loadJSONObject(settingsPath);
+    if (root == null) {
+      root = new JSONObject();
+    }
     root.setString("language", modeCode(mode));
     saveJSONObject(root, settingsPath);
   }

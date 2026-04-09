@@ -13,6 +13,10 @@ class GameEngine {
   AppMode mode = AppMode.MENU;
   boolean wantExit = false;
   int lastMillis = 0;
+  float simAccumulator = 0;
+  boolean runtimeProfilingOverlay = false;
+  String enemyAiProfile = "balanced";
+  BenchmarkRuntime benchmarkRuntime;
 
   GameEngine(int screenW, int screenH) {
     if (i18n == null) {
@@ -23,12 +27,19 @@ class GameEngine {
     mainMenu = new MainMenuSystem();
     timeSystem = new TimeSystem();
     timeSystem.loadFromUiJson();
+    loadRuntimeOptions();
+    benchmarkRuntime = new BenchmarkRuntime();
+    benchmarkRuntime.loadConfig();
     appFont = loadBestUIFont();
     if (appFont != null) {
       textFont(appFont, 14);
     }
     surface.setTitle(tr("app.title"));
     lastMillis = millis();
+    if (benchmarkRuntime != null && benchmarkRuntime.enabled) {
+      runtimeProfilingOverlay = true;
+      benchmarkRuntime.beginIfNeeded(this);
+    }
   }
 
   GameState state() {
@@ -36,7 +47,17 @@ class GameEngine {
   }
 
   boolean startNewGame() {
-    return state != null && state.startNewGame();
+    if (state == null) {
+      return false;
+    }
+    boolean ok = state.startNewGame();
+    if (ok) {
+      simAccumulator = 0;
+      applyEnemyAiProfile();
+      state.showRuntimeProfiling = runtimeProfilingOverlay;
+      state.profileStepLabel = timeSystem.fixedStepHz + "Hz";
+    }
+    return ok;
   }
 
   boolean sessionReady() {
@@ -61,22 +82,42 @@ class GameEngine {
       }
       return;
     }
-    if (state != null && state.sessionReady()) {
-      state.update(timeSystem.gameplayDt(dt));
-      state.render();
-    } else {
-      background(0);
-    }
-    if (consumePendingReturnToMenu()) {
-      mode = AppMode.MENU;
-    }
   }
 
   void tick() {
     int now = millis();
-    float dt = timeSystem.computeRawDt(now, lastMillis);
+    float rawFrameMs = max(0.1, now - lastMillis);
+    float rawDt = timeSystem.computeRawDt(now, lastMillis);
     lastMillis = now;
-    update(dt);
+    if (mode == AppMode.MENU) {
+      update(rawDt);
+      if (benchmarkRuntime != null && benchmarkRuntime.enabled) {
+        benchmarkRuntime.beginIfNeeded(this);
+      }
+      return;
+    }
+    if (state == null || !state.sessionReady()) {
+      background(0);
+      return;
+    }
+    float fixedStep = timeSystem.fixedStepSeconds();
+    simAccumulator += timeSystem.gameplayDt(rawDt);
+    int steps = 0;
+    while (simAccumulator >= fixedStep && steps < timeSystem.maxStepsPerFrame) {
+      state.update(fixedStep);
+      simAccumulator -= fixedStep;
+      steps++;
+    }
+    if (simAccumulator > fixedStep * timeSystem.maxStepsPerFrame) {
+      simAccumulator = fixedStep * 0.5;
+    }
+    state.render();
+    if (benchmarkRuntime != null && benchmarkRuntime.enabled) {
+      benchmarkRuntime.update(this, rawFrameMs);
+    }
+    if (consumePendingReturnToMenu()) {
+      mode = AppMode.MENU;
+    }
   }
 
   void render() {
@@ -166,6 +207,43 @@ class GameEngine {
     if (timeSystem != null) {
       timeSystem.cycleSpeed();
     }
+  }
+
+  String profilingOverlayLabel() {
+    return runtimeProfilingOverlay ? "ON" : "OFF";
+  }
+
+  void toggleProfilingOverlay() {
+    runtimeProfilingOverlay = !runtimeProfilingOverlay;
+    if (state != null) {
+      state.showRuntimeProfiling = runtimeProfilingOverlay;
+    }
+    saveRuntimeUserSettings();
+  }
+
+  void loadRuntimeOptions() {
+    JSONObject root = loadJSONObject("ui.json");
+    if (root == null) return;
+    runtimeProfilingOverlay = root.getBoolean("runtimeProfilingOverlay", runtimeProfilingOverlay);
+    enemyAiProfile = root.getString("enemyAiProfile", enemyAiProfile);
+    JSONObject user = loadJSONObject("data/settings_user.json");
+    if (user != null) {
+      runtimeProfilingOverlay = user.getBoolean("runtimeProfilingOverlay", runtimeProfilingOverlay);
+    }
+  }
+
+  void applyEnemyAiProfile() {
+    if (state == null || state.enemyAi == null) return;
+    state.enemyAi.applyProfile(enemyAiProfile, state);
+  }
+
+  void saveRuntimeUserSettings() {
+    JSONObject root = loadJSONObject("data/settings_user.json");
+    if (root == null) {
+      root = new JSONObject();
+    }
+    root.setBoolean("runtimeProfilingOverlay", runtimeProfilingOverlay);
+    saveJSONObject(root, "data/settings_user.json");
   }
 
   PFont loadBestUIFont() {

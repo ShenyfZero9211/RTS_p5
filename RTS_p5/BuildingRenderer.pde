@@ -2,10 +2,14 @@ BuildingRenderer BUILDING_RENDERER = new BuildingRenderer();
 
 class BuildingRenderer {
   void render(Building b, Camera camera, int tileSize) {
-    pushStyle();
     PVector s = camera.worldToScreen(b.pos.x, b.pos.y);
     float sw = b.tileW * tileSize * camera.zoom;
     float sh = b.tileH * tileSize * camera.zoom;
+    float margin = 18;
+    if (s.x + sw < -margin || s.y + sh < -margin || s.x > camera.viewportW + margin || s.y > camera.viewportH + margin) {
+      return;
+    }
+    pushStyle();
     noStroke();
     int base = factionColor(b.faction);
     if (!b.completed) {

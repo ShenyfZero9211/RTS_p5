@@ -18,6 +18,12 @@ class EnemyAiController {
   ArrayList<PVector> exploreWaypoints = new ArrayList<PVector>();
   int exploreWaypointIndex = 0;
   static final int ATTACK_SQUAD_MIN = 8;
+  String profile = "balanced";
+  float profileAttackIntervalMul = 1.0;
+  float profileAttackAdvantageMul = 1.0;
+  float profileMinersMul = 1.0;
+  float profileTowerBias = 1.0;
+  float profileRocketBias = 1.0;
 
   void update(float dt, GameState gs) {
     rememberSeenEnemies(gs, dt);
@@ -43,7 +49,8 @@ class EnemyAiController {
     float playerArmyValue = max(1, gs.armyValueForFaction(Faction.PLAYER));
     lastEnemyArmyValue = enemyArmyValue;
 
-    if (enemyMines < 1 || enemyMiners < gs.enemyAiMinersMin) {
+    int targetMinersFloor = max(1, int(gs.enemyAiMinersMin * profileMinersMul));
+    if (enemyMines < 1 || enemyMiners < targetMinersFloor) {
       phase = ECO;
     } else if (enemyWarehouses < 1 || enemyBarracks < 1) {
       phase = TECH;
@@ -59,8 +66,8 @@ class EnemyAiController {
     runProduction(gs, enemyMiners, enemyCombat);
 
     PVector strategicTarget = chooseStrategicTarget(gs);
-    boolean readyByTime = attackTimer >= gs.enemyAiAttackInterval;
-    boolean readyByAdv = enemyArmyValue >= playerArmyValue * gs.enemyAiAttackAdvantage;
+    boolean readyByTime = attackTimer >= gs.enemyAiAttackInterval * profileAttackIntervalMul;
+    boolean readyByAdv = enemyArmyValue >= playerArmyValue * gs.enemyAiAttackAdvantage * profileAttackAdvantageMul;
     boolean readyByCount = enemyCombat >= gs.enemyAiAttackMinArmy + 2;
     boolean readyToCommit = readyByTime || readyByAdv || readyByCount || phase == ATTACK;
     if (strategicTarget != null) {
@@ -207,7 +214,8 @@ class EnemyAiController {
         }
       }
     }
-    if (!underPressure && enemyTowers >= 2) return;
+    int towerCap = max(1, int(2 * profileTowerBias));
+    if (!underPressure && enemyTowers >= towerCap) return;
     if (gs.enemyResources.credits < 180) return;
     if (gs.tryQueueBuildingForFaction(Faction.ENEMY, "tower", PVector.add(base.pos, new PVector(-gs.map.tileSize * 3.0, gs.map.tileSize * 2.0)))) {
       lastAction = "build:tower";
@@ -215,7 +223,9 @@ class EnemyAiController {
   }
 
   void runProduction(GameState gs, int enemyMiners, int enemyCombat) {
-    int targetMiners = int(constrain(gs.enemyAiMinersMin + enemyCombat / 6, gs.enemyAiMinersMin, gs.enemyAiMinersMax));
+    int baseMin = max(1, int(gs.enemyAiMinersMin * profileMinersMul));
+    int baseMax = max(baseMin, int(gs.enemyAiMinersMax * profileMinersMul));
+    int targetMiners = int(constrain(baseMin + enemyCombat / 6, baseMin, baseMax));
     if (enemyMiners < targetMiners && gs.tryTrainUnitForFaction(Faction.ENEMY, "miner")) {
       lastAction = "train:miner";
       return;
@@ -225,7 +235,8 @@ class EnemyAiController {
     int combatCount = max(1, rifleCount + rocketCount);
     float rifleShare = rifleCount / float(combatCount);
     float rocketShare = rocketCount / float(combatCount);
-    if (rocketShare < gs.enemyAiRocketRatio && gs.tryTrainUnitForFaction(Faction.ENEMY, "rocketeer")) {
+    float rocketTargetRatio = constrain(gs.enemyAiRocketRatio * profileRocketBias, 0.05, 0.90);
+    if (rocketShare < rocketTargetRatio && gs.tryTrainUnitForFaction(Faction.ENEMY, "rocketeer")) {
       lastAction = "train:rocketeer";
       return;
     }
@@ -319,6 +330,39 @@ class EnemyAiController {
     if (phase == MUSTER) return "MUSTER";
     if (phase == ATTACK) return "ATTACK";
     return "BOOTSTRAP";
+  }
+
+  void applyProfile(String profileName, GameState gs) {
+    profile = profileName == null ? "balanced" : trim(profileName.toLowerCase());
+    profileAttackIntervalMul = 1.0;
+    profileAttackAdvantageMul = 1.0;
+    profileMinersMul = 1.0;
+    profileTowerBias = 1.0;
+    profileRocketBias = 1.0;
+    if ("rush".equals(profile)) {
+      profileAttackIntervalMul = 0.72;
+      profileAttackAdvantageMul = 0.88;
+      profileMinersMul = 0.85;
+      profileTowerBias = 0.8;
+      profileRocketBias = 0.9;
+    } else if ("greed".equals(profile)) {
+      profileAttackIntervalMul = 1.18;
+      profileAttackAdvantageMul = 1.08;
+      profileMinersMul = 1.25;
+      profileTowerBias = 0.9;
+      profileRocketBias = 0.85;
+    } else if ("turtle".equals(profile)) {
+      profileAttackIntervalMul = 1.28;
+      profileAttackAdvantageMul = 1.22;
+      profileMinersMul = 1.05;
+      profileTowerBias = 1.6;
+      profileRocketBias = 1.2;
+    } else {
+      profile = "balanced";
+    }
+    if (gs != null && gs.enemyAiDebug) {
+      println("Enemy AI profile: " + profile);
+    }
   }
 }
 

@@ -17,6 +17,7 @@ class UiSettingsLoader {
     gs.fogAutoAdaptiveThreshold = root.getInt("fogAutoAdaptiveThreshold", gs.fogAutoAdaptiveThreshold);
     gs.fogAutoAdaptiveStep = root.getFloat("fogAutoAdaptiveStep", gs.fogAutoAdaptiveStep);
     gs.fogAutoAdaptiveMaxInterval = root.getFloat("fogAutoAdaptiveMaxInterval", gs.fogAutoAdaptiveMaxInterval);
+    gs.fogUpdateBudgetMs = root.getFloat("fogUpdateBudgetMs", gs.fogUpdateBudgetMs);
     gs.fogUnexploredAlpha = root.getInt("fogUnexploredAlpha", gs.fogUnexploredAlpha);
     gs.fogExploredAlpha = root.getInt("fogExploredAlpha", gs.fogExploredAlpha);
     gs.enemyAiDecisionInterval = root.getFloat("enemyAiDecisionInterval", gs.enemyAiDecisionInterval);
@@ -35,6 +36,7 @@ class UiSettingsLoader {
     gs.enemyBaseSupplyCap = root.getInt("enemyBaseSupplyCap", gs.enemyBaseSupplyCap);
     gs.warehouseSupplyCapBonus = root.getInt("warehouseSupplyCapBonus", gs.warehouseSupplyCapBonus);
     gs.warehouseCreditCapBonus = root.getInt("warehouseCreditCapBonus", gs.warehouseCreditCapBonus);
+    gs.fxDensityLevel = root.getInt("fxDensityLevel", gs.fxDensityLevel);
     gs.sidePanelWidthRatio = constrain(gs.sidePanelWidthRatio, 0.12, 0.45);
     gs.sidePanelMinW = max(180, gs.sidePanelMinW);
     gs.sidePanelMaxW = max(gs.sidePanelMinW, gs.sidePanelMaxW);
@@ -47,6 +49,7 @@ class UiSettingsLoader {
     gs.fogAutoAdaptiveThreshold = int(constrain(gs.fogAutoAdaptiveThreshold, 0, 2000));
     gs.fogAutoAdaptiveStep = constrain(gs.fogAutoAdaptiveStep, 0.0, 0.03);
     gs.fogAutoAdaptiveMaxInterval = constrain(gs.fogAutoAdaptiveMaxInterval, gs.fogUpdateInterval, 0.8);
+    gs.fogUpdateBudgetMs = constrain(gs.fogUpdateBudgetMs, 0.4, 12.0);
     gs.fogUnexploredAlpha = int(constrain(gs.fogUnexploredAlpha, 80, 255));
     gs.fogExploredAlpha = int(constrain(gs.fogExploredAlpha, 30, 220));
     gs.enemyAiDecisionInterval = constrain(gs.enemyAiDecisionInterval, 0.08, 0.8);
@@ -64,6 +67,7 @@ class UiSettingsLoader {
     gs.enemyBaseSupplyCap = int(constrain(gs.enemyBaseSupplyCap, 1, 300));
     gs.warehouseSupplyCapBonus = int(constrain(gs.warehouseSupplyCapBonus, 1, 200));
     gs.warehouseCreditCapBonus = int(constrain(gs.warehouseCreditCapBonus, 50, 100000));
+    gs.fxDensityLevel = int(constrain(gs.fxDensityLevel, 0, 3));
   }
 }
 

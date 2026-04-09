@@ -84,9 +84,13 @@ class UnitCombatLogic {
 
 class UnitRenderer {
   void render(Unit u, Camera camera) {
-    pushStyle();
     PVector s = camera.worldToScreen(u.pos.x, u.pos.y);
     float rr = u.radius * camera.zoom;
+    float margin = max(24, rr + 24);
+    if (s.x < -margin || s.y < -margin || s.x > camera.viewportW + margin || s.y > camera.viewportH + margin) {
+      return;
+    }
+    pushStyle();
     noStroke();
     fill(factionColor(u.faction));
     ellipse(s.x, s.y, rr * 2, rr * 2);

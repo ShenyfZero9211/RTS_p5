@@ -1,1 +1,4 @@
-{"language": "zh"}
+{
+  "runtimeProfilingOverlay": true,
+  "language": "auto"
+}

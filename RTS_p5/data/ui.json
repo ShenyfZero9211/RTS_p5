@@ -14,6 +14,7 @@
   "fogAutoAdaptiveThreshold": 12,
   "fogAutoAdaptiveStep": 0.004,
   "fogAutoAdaptiveMaxInterval": 0.22,
+  "fogUpdateBudgetMs": 2.5,
   "fogUnexploredAlpha": 220,
   "fogExploredAlpha": 120,
   "enemyAiDecisionInterval": 0.22,
@@ -32,8 +33,13 @@
   "enemyBaseSupplyCap": 8,
   "warehouseSupplyCapBonus": 20,
   "warehouseCreditCapBonus": 1000,
+  "fxDensityLevel": 2,
   "gameSpeedDefault": 1.0,
   "gameSpeedMin": 0.5,
   "gameSpeedMax": 2.0,
-  "gameSpeedStep": 0.25
+  "gameSpeedStep": 0.25,
+  "fixedStepHz": 60,
+  "maxStepsPerFrame": 4,
+  "runtimeProfilingOverlay": false,
+  "enemyAiProfile": "balanced"
 }

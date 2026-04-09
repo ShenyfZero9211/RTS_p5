@@ -18,6 +18,7 @@ class GameState {
   int fogAutoAdaptiveThreshold = 12;
   float fogAutoAdaptiveStep = 0.004;
   float fogAutoAdaptiveMaxInterval = 0.22;
+  float fogUpdateBudgetMs = 2.5;
   int fogUnexploredAlpha = 220;
   int fogExploredAlpha = 120;
 
@@ -82,6 +83,29 @@ class GameState {
   String lastStartError = "";
   ArrayList<UiHitButton> gameEndHitButtons = new ArrayList<UiHitButton>();
   boolean pendingReturnToMenu = false;
+  boolean showRuntimeProfiling = false;
+  float profileInputMs = 0;
+  float profileBuildMs = 0;
+  float profileUnitsMs = 0;
+  float profileFogMs = 0;
+  float profileCombatMs = 0;
+  float profileAiMs = 0;
+  float profileUiMs = 0;
+  float profileFrameMs = 0;
+  int profilingSampleFrames = 0;
+  int fxDensityLevel = 2;
+  String profileStepLabel = "60Hz";
+  boolean benchmarkScenarioActive = false;
+  float benchmarkOrderPulseTimer = 0;
+  float benchmarkReinforceTimer = 0;
+  float benchmarkReinforceInterval = 12.0;
+  int benchmarkReinforceCount = 10;
+  String benchmarkIntensity = "heavy";
+  String benchmarkTroopProfile = "balanced";
+  int benchmarkWaveSerial = 0;
+  int benchmarkLastPlayerReinforce = 0;
+  int benchmarkLastEnemyReinforce = 0;
+  float benchmarkReinforceFlashTimer = 0;
 
   GameState(int screenW, int screenH) {
     this.screenW = screenW;
@@ -115,6 +139,13 @@ class GameState {
     lastStartError = "";
     gameEnded = false;
     gameResult = "";
+    benchmarkScenarioActive = false;
+    benchmarkOrderPulseTimer = 0;
+    benchmarkReinforceTimer = 0;
+    benchmarkWaveSerial = 0;
+    benchmarkLastPlayerReinforce = 0;
+    benchmarkLastEnemyReinforce = 0;
+    benchmarkReinforceFlashTimer = 0;
     pendingReturnToMenu = false;
     orderLabel = tr("order.none");
     attackMoveArmed = false;
@@ -287,6 +318,285 @@ class GameState {
     units.add(new Unit(safe.x, safe.y, faction, def));
   }
 
+  void prepareBenchmarkBattlefield(String intensity, String troopProfile) {
+    if (map == null) return;
+    String level = intensity == null ? "heavy" : trim(intensity.toLowerCase());
+    if (!"medium".equals(level) && !"heavy".equals(level) && !"extreme".equals(level)) {
+      level = "heavy";
+    }
+    String profile = troopProfile == null ? "balanced" : trim(troopProfile.toLowerCase());
+    if (!"balanced".equals(profile) && !"anti-armor".equals(profile) && !"swarm".equals(profile)) {
+      profile = "balanced";
+    }
+    units.clear();
+    buildings.clear();
+    selectedUnits.clear();
+    selectedBuilding = null;
+    trainQueue.clear();
+    buildSystem.queue.clear();
+    buildSystem.currentJob = null;
+    buildSystem.active = false;
+    rockets.clear();
+    muzzleFx.clear();
+    deliveries.clear();
+    orderMarkers.clear();
+    gameEnded = false;
+    gameResult = "";
+    benchmarkScenarioActive = true;
+    benchmarkOrderPulseTimer = 0.2;
+    benchmarkIntensity = level;
+    benchmarkTroopProfile = profile;
+    benchmarkReinforceInterval = "medium".equals(level) ? 15.0 : ("extreme".equals(level) ? 7.5 : 11.0);
+    benchmarkReinforceCount = "medium".equals(level) ? 6 : ("extreme".equals(level) ? 16 : 10);
+    benchmarkReinforceTimer = benchmarkReinforceInterval;
+    benchmarkWaveSerial = 0;
+    benchmarkLastPlayerReinforce = 0;
+    benchmarkLastEnemyReinforce = 0;
+    benchmarkReinforceFlashTimer = 0;
+
+    float ts = map.tileSize;
+    float centerX = map.worldWidthPx() * 0.5;
+    float centerY = map.worldHeightPx() * 0.5;
+    PVector pAnchor = new PVector(ts * 7.5, centerY - ts * 3.0);
+    PVector eAnchor = new PVector(map.worldWidthPx() - ts * 7.5, centerY + ts * 3.0);
+
+    BuildingDef base = getBuildingDef("base");
+    BuildingDef mine = getBuildingDef("mine");
+    BuildingDef warehouse = getBuildingDef("warehouse");
+    BuildingDef barracks = getBuildingDef("barracks");
+    BuildingDef tower = getBuildingDef("tower");
+    if (base == null) return;
+
+    // Core bases.
+    addInitialBuildingAt(base, Faction.PLAYER, pAnchor.x, pAnchor.y, 1);
+    addInitialBuildingAt(base, Faction.ENEMY, eAnchor.x, eAnchor.y, 1);
+
+    int ecoClusters = "medium".equals(level) ? 2 : ("extreme".equals(level) ? 4 : 3);
+    int towerHalfLine = "medium".equals(level) ? 3 : ("extreme".equals(level) ? 7 : 4);
+    int armyCols = "medium".equals(level) ? 6 : ("extreme".equals(level) ? 11 : 8);
+    int armyRows = "medium".equals(level) ? 4 : ("extreme".equals(level) ? 7 : 5);
+    float frontOffset = "medium".equals(level) ? 4.0 : ("extreme".equals(level) ? 2.0 : 3.0);
+
+    // Economy and production clusters.
+    for (int i = 0; i < ecoClusters; i++) {
+      float off = (i - 1) * ts * 6.0;
+      if (mine != null) {
+        addInitialBuildingAt(mine, Faction.PLAYER, pAnchor.x + ts * 4.0, pAnchor.y + off, 1);
+        addInitialBuildingAt(mine, Faction.ENEMY, eAnchor.x - ts * 4.0, eAnchor.y + off, 1);
+      }
+      if (warehouse != null) {
+        addInitialBuildingAt(warehouse, Faction.PLAYER, pAnchor.x + ts * 1.5, pAnchor.y + off + ts * 2.0, 1);
+        addInitialBuildingAt(warehouse, Faction.ENEMY, eAnchor.x - ts * 1.5, eAnchor.y + off - ts * 2.0, 1);
+      }
+      if (barracks != null) {
+        addInitialBuildingAt(barracks, Faction.PLAYER, pAnchor.x + ts * 7.0, pAnchor.y + off, 1);
+        addInitialBuildingAt(barracks, Faction.ENEMY, eAnchor.x - ts * 7.0, eAnchor.y + off, 1);
+      }
+    }
+
+    // Forward tower line around the front.
+    if (tower != null) {
+      for (int i = -towerHalfLine; i <= towerHalfLine; i++) {
+        float y = centerY + i * ts * 1.8;
+        addInitialBuildingAt(tower, Faction.PLAYER, centerX - ts * 7.0, y, 0);
+        addInitialBuildingAt(tower, Faction.ENEMY, centerX + ts * 7.0, y, 0);
+      }
+    }
+
+    UnitDef miner = getUnitDef("miner");
+    UnitDef rifle = getUnitDef("rifleman");
+    UnitDef rocket = getUnitDef("rocketeer");
+    spawnBenchmarkArmy(Faction.PLAYER, pAnchor, centerX, centerY, miner, rifle, rocket, armyCols, armyRows, frontOffset, profile);
+    spawnBenchmarkArmy(Faction.ENEMY, eAnchor, centerX, centerY, miner, rifle, rocket, armyCols, armyRows, frontOffset, profile);
+
+    refreshFactionCaps();
+    resources = new ResourcePool(99999, creditCapForFaction(Faction.PLAYER));
+    enemyResources = new ResourcePool(99999, creditCapForFaction(Faction.ENEMY));
+  }
+
+  void spawnBenchmarkArmy(Faction faction, PVector anchor, float centerX, float centerY, UnitDef miner, UnitDef rifle, UnitDef rocket, int cols, int rows, float frontOffsetTiles, String troopProfile) {
+    float ts = map.tileSize;
+    for (int y = 0; y < rows; y++) {
+      for (int x = 0; x < cols; x++) {
+        int idx = y * cols + x;
+        UnitDef def = benchmarkUnitByIndex(idx, 0, faction, miner, rifle, rocket, false, troopProfile);
+        if (def == null) continue;
+        float ox = (x - cols * 0.5) * ts * 1.15;
+        float oy = (y - rows * 0.5) * ts * 1.10;
+        PVector desired = new PVector(anchor.x + ox, anchor.y + oy);
+        PVector safe = findNearestOpenSlot(desired, new ArrayList<String>());
+        Unit u = new Unit(safe.x, safe.y, faction, def);
+        units.add(u);
+      }
+    }
+    PVector pushTarget = new PVector(centerX + (faction == Faction.PLAYER ? ts * frontOffsetTiles : -ts * frontOffsetTiles), centerY);
+    for (Unit u : units) {
+      if (u.faction != faction || u.hp <= 0 || u.canHarvest) continue;
+      u.issueAttackMove(pushTarget.copy(), this, false);
+    }
+  }
+
+  void sustainBenchmarkFrontline(float dt) {
+    if (!benchmarkScenarioActive || map == null) return;
+    benchmarkReinforceTimer -= dt;
+    benchmarkReinforceFlashTimer = max(0, benchmarkReinforceFlashTimer - dt);
+    benchmarkOrderPulseTimer -= dt;
+    if (benchmarkReinforceTimer <= 0) {
+      benchmarkReinforceTimer = benchmarkReinforceInterval;
+      spawnBenchmarkReinforcements();
+    }
+    if (benchmarkOrderPulseTimer > 0) return;
+    benchmarkOrderPulseTimer = 1.2;
+
+    PVector playerTarget = factionFrontlineTarget(Faction.PLAYER);
+    PVector enemyTarget = factionFrontlineTarget(Faction.ENEMY);
+    refreshBenchmarkFactionPush(Faction.PLAYER, playerTarget);
+    refreshBenchmarkFactionPush(Faction.ENEMY, enemyTarget);
+    if (benchmarkReinforceFlashTimer > 0) {
+      refreshBenchmarkFactionPush(Faction.PLAYER, playerTarget);
+      refreshBenchmarkFactionPush(Faction.ENEMY, enemyTarget);
+    }
+  }
+
+  PVector factionFrontlineTarget(Faction attacker) {
+    Faction defender = attacker == Faction.PLAYER ? Faction.ENEMY : Faction.PLAYER;
+    Building enemyBase = findMainBaseForFaction(defender);
+    if (enemyBase != null) {
+      return new PVector(enemyBase.pos.x + enemyBase.tileW * map.tileSize * 0.5, enemyBase.pos.y + enemyBase.tileH * map.tileSize * 0.5);
+    }
+    Unit bestUnit = null;
+    float bestDist = 1e9;
+    PVector fallback = new PVector(map.worldWidthPx() * 0.5, map.worldHeightPx() * 0.5);
+    for (Unit u : units) {
+      if (u.faction != defender || u.hp <= 0) continue;
+      float d = PVector.dist(u.pos, fallback);
+      if (d < bestDist) {
+        bestDist = d;
+        bestUnit = u;
+      }
+    }
+    if (bestUnit != null) return bestUnit.pos.copy();
+    return fallback;
+  }
+
+  void refreshBenchmarkFactionPush(Faction faction, PVector target) {
+    if (target == null) return;
+    for (Unit u : units) {
+      if (u.faction != faction || u.hp <= 0 || u.canHarvest) continue;
+      boolean hasPath = u.pathQueue != null && u.pathQueue.size() > 0;
+      boolean needsOrder = u.orderType == UnitOrderType.NONE || !hasPath;
+      if (!needsOrder && u.moveTarget != null && PVector.dist(u.moveTarget, target) > map.tileSize * 6.0) {
+        needsOrder = true;
+      }
+      if (needsOrder) {
+        u.issueAttackMove(target.copy(), this, false);
+      }
+    }
+  }
+
+  void spawnBenchmarkReinforcements() {
+    UnitDef rifle = getUnitDef("rifleman");
+    UnitDef rocket = getUnitDef("rocketeer");
+    UnitDef miner = getUnitDef("miner");
+    if (rifle == null && rocket == null) return;
+    benchmarkWaveSerial++;
+    int p = spawnFactionReinforcementWave(Faction.PLAYER, benchmarkReinforceCount, miner, rifle, rocket, benchmarkWaveSerial, benchmarkTroopProfile);
+    int e = spawnFactionReinforcementWave(Faction.ENEMY, benchmarkReinforceCount, miner, rifle, rocket, benchmarkWaveSerial, benchmarkTroopProfile);
+    if (p > 0) {
+      addOrderMarker(factionFrontlineTarget(Faction.PLAYER), false);
+      spawnDeliveryFx(factionFrontlineTarget(Faction.PLAYER), p);
+    }
+    if (e > 0) {
+      addOrderMarker(factionFrontlineTarget(Faction.ENEMY), true);
+      spawnDeliveryFx(factionFrontlineTarget(Faction.ENEMY), e);
+    }
+    benchmarkLastPlayerReinforce = p;
+    benchmarkLastEnemyReinforce = e;
+    benchmarkReinforceFlashTimer = 2.0;
+    println("[BENCH] reinforcement wave player=" + p + " enemy=" + e + " intensity=" + benchmarkIntensity);
+  }
+
+  int spawnFactionReinforcementWave(Faction faction, int count, UnitDef miner, UnitDef rifle, UnitDef rocket, int waveSerial, String troopProfile) {
+    Building base = findMainBaseForFaction(faction);
+    if (base == null || count <= 0) return 0;
+    float ts = map.tileSize;
+    float baseCx = base.pos.x + base.tileW * ts * 0.5;
+    float baseCy = base.pos.y + base.tileH * ts * 0.5;
+    float side = faction == Faction.PLAYER ? -1.0 : 1.0;
+    float backOffsetTiles = 8.5;
+    float lateralOffsetTiles = (waveSerial % 2 == 0) ? 2.0 : -2.0;
+    PVector anchor = new PVector(
+      baseCx + side * ts * backOffsetTiles,
+      baseCy + ts * lateralOffsetTiles
+    );
+    int cols = max(6, int(ceil(sqrt(count) * 1.35)));
+    int spawned = 0;
+    ArrayList<String> used = new ArrayList<String>();
+    for (int i = 0; i < count; i++) {
+      UnitDef def = benchmarkUnitByIndex(i, waveSerial, faction, miner, rifle, rocket, true, troopProfile);
+      if (def == null) continue;
+      int gx = i % cols;
+      int gy = i / cols;
+      float ox = (gx - (cols - 1) * 0.5) * ts * 1.15;
+      float oy = gy * ts * 0.75;
+      float rowShift = (gy % 2 == 0 ? -0.35 : 0.35) * ts;
+      PVector desired = new PVector(anchor.x + side * ts * 0.8 + ox, anchor.y + rowShift + oy);
+      PVector safe = findNearestOpenSlot(desired, used);
+      used.add(tileKeyForWorld(safe));
+      Unit u = new Unit(safe.x, safe.y, faction, def);
+      units.add(u);
+      spawned++;
+    }
+    if (spawned > 0) {
+      refreshFactionCaps();
+    }
+    return spawned;
+  }
+
+  UnitDef benchmarkUnitByIndex(int idx, int waveSerial, Faction faction, UnitDef miner, UnitDef rifle, UnitDef rocket, boolean reinforce, String troopProfile) {
+    // Use rotating composition templates so benchmark scenarios are explicit and reproducible.
+    int seed = idx + waveSerial * 3 + (faction == Faction.ENEMY ? 2 : 0);
+    int bucket = ((seed % 10) + 10) % 10;
+    String profile = troopProfile == null ? "balanced" : troopProfile;
+    if ("anti-armor".equals(profile)) {
+      if (reinforce) {
+        if (bucket <= 1 && rifle != null) return rifle;      // 20%
+        if (bucket <= 7 && rocket != null) return rocket;     // 60%
+        if (miner != null) return miner;                      // 20%
+      } else {
+        if (bucket <= 2 && rifle != null) return rifle;       // 30%
+        if (bucket <= 7 && rocket != null) return rocket;     // 50%
+        if (miner != null) return miner;                      // 20%
+      }
+      return rocket != null ? rocket : rifle;
+    }
+    if ("swarm".equals(profile)) {
+      if (reinforce) {
+        if (bucket <= 6 && rifle != null) return rifle;       // 70%
+        if (bucket <= 7 && rocket != null) return rocket;     // 10%
+        if (miner != null) return miner;                      // 20%
+      } else {
+        if (bucket <= 6 && rifle != null) return rifle;       // 70%
+        if (bucket <= 8 && rocket != null) return rocket;     // 20%
+        if (miner != null) return miner;                      // 10%
+      }
+      return rifle != null ? rifle : rocket;
+    }
+    // balanced
+    if (reinforce) {
+      // Reinforcements skew combat-heavy but still keep some miners.
+      if (bucket <= 3 && rifle != null) return rifle;      // 40%
+      if (bucket <= 7 && rocket != null) return rocket;     // 40%
+      if (miner != null) return miner;                      // 20%
+      return rifle != null ? rifle : rocket;
+    }
+    // Initial army: balanced blend.
+    if (bucket <= 4 && rifle != null) return rifle;         // 50%
+    if (bucket <= 7 && rocket != null) return rocket;       // 30%
+    if (miner != null) return miner;                        // 20%
+    return rifle != null ? rifle : rocket;
+  }
+
   void loadUiSettings() {
     if (uiSettingsLoader == null) {
       uiSettingsLoader = new UiSettingsLoader();
@@ -343,16 +653,24 @@ class GameState {
   }
 
   void update(float dt) {
+    long frameStartNanos = System.nanoTime();
     if (map == null) {
       return;
     }
     if (gameEnded) {
+      int t0 = millis();
       input.update(dt);
+      profileInputMs = lerp(profileInputMs, millis() - t0, 0.15);
       return;
     }
+    int tInput = millis();
     input.update(dt);
+    profileInputMs = lerp(profileInputMs, millis() - tInput, 0.15);
+    int tBuild = millis();
     buildSystem.update(dt, buildings);
     effectsRuntime.updateOrderMarkers(this, dt);
+    profileBuildMs = lerp(profileBuildMs, millis() - tBuild, 0.15);
+    int tUnits = millis();
     for (int i = units.size() - 1; i >= 0; i--) {
       Unit u = units.get(i);
       u.update(dt, this);
@@ -376,17 +694,24 @@ class GameState {
     for (int i = 0; i < units.size(); i++) {
       resolveUnitAgainstSolids(units.get(i));
     }
+    profileUnitsMs = lerp(profileUnitsMs, millis() - tUnits, 0.15);
+    int tFog = millis();
     if (fog != null) {
       fog.update(dt, this);
     }
+    profileFogMs = lerp(profileFogMs, millis() - tFog, 0.15);
+    int tCombat = millis();
     updateRockets(dt);
     updateMuzzleFx(dt);
     updateDeliveryFx(dt);
     updateTrainQueue(dt);
     updateTowerDefense(dt);
+    profileCombatMs = lerp(profileCombatMs, millis() - tCombat, 0.15);
+    int tAi = millis();
     if (enemyAi != null) {
       enemyAi.update(dt, this);
     }
+    profileAiMs = lerp(profileAiMs, millis() - tAi, 0.15);
     if (buildSystem.active && !selectedStructureOffersBuildMenu()) {
       buildSystem.active = false;
       buildSystem.lastFailReason = "";
@@ -394,6 +719,9 @@ class GameState {
     }
     refreshFactionCaps();
     checkWinCondition();
+    float frameMs = (System.nanoTime() - frameStartNanos) / 1000000.0;
+    profileFrameMs = lerp(profileFrameMs, frameMs, 0.15);
+    profilingSampleFrames++;
   }
 
   void render() {
@@ -443,10 +771,36 @@ class GameState {
     effectsRuntime.renderOrderMarkers(this);
     popStyle();
 
+    renderBenchmarkWaveBanner();
+
+    int tUi = millis();
     ui.render(this);
+    profileUiMs = lerp(profileUiMs, millis() - tUi, 0.15);
     if (gameEnded) {
       renderGameEndOverlay();
     }
+  }
+
+  void renderBenchmarkWaveBanner() {
+    if (!benchmarkScenarioActive || benchmarkReinforceFlashTimer <= 0) return;
+    float k = constrain(benchmarkReinforceFlashTimer / 2.0, 0, 1);
+    float bw = min(worldViewW * 0.72, 560);
+    float bh = 52;
+    float bx = worldViewW * 0.5 - bw * 0.5;
+    float by = 22;
+    pushStyle();
+    noStroke();
+    fill(10, 12, 16, 185 + 50 * k);
+    rect(bx, by, bw, bh, 8);
+    stroke(255, 205, 110, 180 + 60 * k);
+    strokeWeight(2);
+    noFill();
+    rect(bx, by, bw, bh, 8);
+    fill(255, 225, 140, 220 + 30 * k);
+    textAlign(CENTER, CENTER);
+    textSize(18);
+    text("REINFORCEMENT WAVE  P+" + benchmarkLastPlayerReinforce + "  E+" + benchmarkLastEnemyReinforce, bx + bw * 0.5, by + bh * 0.5);
+    popStyle();
   }
 
   void clearSelection() {
@@ -516,6 +870,10 @@ class GameState {
     selectedBuilding.rallyPoint = world.copy();
     orderLabel = tr("order.rallySet");
     addOrderMarker(world.copy(), false);
+  }
+
+  String profileStepHzLabel() {
+    return profileStepLabel;
   }
 
   void resetControlGroups() {
