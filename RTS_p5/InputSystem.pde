@@ -42,11 +42,7 @@ class InputSystem {
       PVector world = state.ui.minimap.minimapToWorld(mx, my, state.map);
       if (state.attackMoveArmed && state.selectedUnits.size() > 0) {
         boolean queue = isShiftDown();
-        state.clearSelectedHarvestOrders();
-        state.commandSystem.attackMoveSelected(state, state.selectedUnits, world, queue);
-        state.orderLabel = tr("order.attackMove");
-        state.addOrderMarker(world.copy(), true);
-        state.attackMoveArmed = false;
+        state.issueAttackMoveCommand(world, queue);
         return;
       }
       state.camera.jumpCenterTo(world.x, world.y);
@@ -57,20 +53,12 @@ class InputSystem {
       PVector miniWorld = state.ui.minimap.minimapToWorld(mx, my, state.map);
       boolean queue = isShiftDown();
       if (state.selectedUnits.size() == 0 && state.selectedBuilding != null && state.selectedStructureOffersTrainMenu()) {
-        state.selectedBuilding.rallyPoint = miniWorld.copy();
-        state.orderLabel = tr("order.rallySet");
-        state.addOrderMarker(miniWorld.copy(), false);
+        state.setSelectedBuildingRally(miniWorld);
       } else if (state.selectedUnits.size() > 0) {
-        state.clearSelectedHarvestOrders();
         if (state.attackMoveArmed) {
-          state.commandSystem.attackMoveSelected(state, state.selectedUnits, miniWorld, queue);
-          state.orderLabel = tr("order.attackMove");
-          state.addOrderMarker(miniWorld.copy(), true);
-          state.attackMoveArmed = false;
+          state.issueAttackMoveCommand(miniWorld, queue);
         } else {
-          state.commandSystem.moveSelected(state, state.selectedUnits, miniWorld, queue);
-          state.orderLabel = queue ? tr("order.queueMove") : tr("order.move");
-          state.addOrderMarker(miniWorld.copy(), false);
+          state.issueMoveCommand(miniWorld, queue);
         }
       }
       return;
@@ -88,10 +76,7 @@ class InputSystem {
     PVector world = state.camera.screenToWorld(mx, my);
     if (button == LEFT) {
       if (state.attackMoveArmed) {
-        state.commandSystem.attackMoveSelected(state, state.selectedUnits, world, false);
-        state.orderLabel = tr("order.attackMove");
-        state.addOrderMarker(world, true);
-        state.attackMoveArmed = false;
+        state.issueAttackMoveCommand(world, false);
         return;
       }
       if (state.buildSystem.active) {
@@ -101,8 +86,7 @@ class InputSystem {
         }
         boolean ok = state.buildSystem.queueBuildIfValid(state.map, state.buildings, state.activeFaction, state.resources);
         if (ok) {
-          state.buildSystem.active = false;
-          state.ui.clearBuildButtonState();
+          state.cancelBuildPlacement();
           state.orderLabel = tr("order.buildPlaced");
         }
         return;
@@ -112,16 +96,11 @@ class InputSystem {
       dragEnd.set(world);
     } else if (button == RIGHT) {
       if (state.buildSystem.active) {
-        state.buildSystem.active = false;
-        state.buildSystem.lastFailReason = "";
-        state.ui.clearBuildButtonState();
-        state.orderLabel = tr("order.buildCancel");
+        state.cancelBuildPlacement();
         return;
       }
       if (state.selectedUnits.size() == 0 && state.selectedBuilding != null && state.selectedStructureOffersTrainMenu()) {
-        state.selectedBuilding.rallyPoint = world.copy();
-        state.orderLabel = tr("order.rallySet");
-        state.addOrderMarker(world.copy(), false);
+        state.setSelectedBuildingRally(world);
         return;
       }
       if (state.selectedUnits.size() == 0) {
@@ -134,31 +113,17 @@ class InputSystem {
       }
       Unit target = state.findNearestUnitAt(world, 24);
       if (target != null && target.faction != state.activeFaction && state.selectedUnits.size() > 0) {
-        state.clearSelectedHarvestOrders();
-        state.commandSystem.attackSelected(state.selectedUnits, target);
-        state.orderLabel = tr("order.attack");
-        state.addOrderMarker(target.pos.copy(), true);
+        state.issueAttackUnitCommand(target);
       } else {
         Building bt = state.findNearestBuildingAt(world, 18, true);
         if (bt != null && bt.faction != state.activeFaction) {
-          state.clearSelectedHarvestOrders();
-          state.commandSystem.attackSelectedBuilding(state.selectedUnits, bt);
-          PVector bc = new PVector(bt.pos.x + bt.tileW * state.map.tileSize * 0.5, bt.pos.y + bt.tileH * state.map.tileSize * 0.5);
-          state.orderLabel = tr("order.attackBuilding");
-          state.addOrderMarker(bc, true);
+          state.issueAttackBuildingCommand(bt);
           return;
         }
         if (state.attackMoveArmed) {
-          state.clearSelectedHarvestOrders();
-          state.commandSystem.attackMoveSelected(state, state.selectedUnits, world, queue);
-          state.orderLabel = tr("order.attackMove");
-          state.addOrderMarker(world, true);
-          state.attackMoveArmed = false;
+          state.issueAttackMoveCommand(world, queue);
         } else {
-          state.clearSelectedHarvestOrders();
-          state.commandSystem.moveSelected(state, state.selectedUnits, world, queue);
-          state.orderLabel = queue ? tr("order.queueMove") : tr("order.move");
-          state.addOrderMarker(world, false);
+          state.issueMoveCommand(world, queue);
         }
       }
     }
@@ -319,8 +284,7 @@ class InputSystem {
       return;
     }
     if (key == 'a' || key == 'A') {
-      state.attackMoveArmed = !state.attackMoveArmed;
-      state.orderLabel = state.attackMoveArmed ? tr("order.attackMoveArmed") : tr("order.attackMoveCancel");
+      state.setAttackMoveArmed(!state.attackMoveArmed);
       return;
     }
     if (key == 'l' || key == 'L') {

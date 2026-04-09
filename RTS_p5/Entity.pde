@@ -543,82 +543,11 @@ class Unit extends Entity {
   }
 
   void updateCombatAi(GameState gs) {
-    if (aiThinkTimer > 0 || gs == null) {
-      return;
-    }
-    aiThinkTimer = random(0.12, 0.22);
-
-    Unit visible = gs.findHostileInRange(this, sightRange, gs);
-    if (visible != null) {
-      aiLastKnownEnemyPos = visible.pos.copy();
-      aiInvestigateTimer = 2.4;
-      if (attackTarget != visible) {
-        issueAttack(visible);
-      }
-      return;
-    }
-
-    if (faction == Faction.ENEMY && canAttack) {
-      float bRange = max(attackRange * 1.15, sightRange);
-      Building hostileB = gs.findNearestHostileBuilding(this, bRange);
-      if (hostileB != null) {
-        if (attackBuildingTarget != hostileB) {
-          issueAttackBuilding(hostileB);
-        }
-        return;
-      }
-    }
-
-    if (aiLastKnownEnemyPos != null && aiInvestigateTimer > 0) {
-      if (PVector.dist(pos, aiLastKnownEnemyPos) < radius + 10) {
-        aiInvestigateTimer = 0;
-        aiLastKnownEnemyPos = null;
-      } else {
-        boolean needMove = (moveTarget == null) || PVector.dist(moveTarget, aiLastKnownEnemyPos) > 10;
-        if (needMove || pathQueue.size() == 0) {
-          issueMove(aiLastKnownEnemyPos.copy(), gs, false);
-        }
-      }
-      return;
-    }
-
-    if (aiLastKnownEnemyPos != null && aiInvestigateTimer <= 0) {
-      aiLastKnownEnemyPos = null;
-    }
-
-    if (aiPatrolPoints != null && aiPatrolPoints.size() > 0) {
-      if (orderType == UnitOrderType.ATTACK || orderType == UnitOrderType.ATTACK_MOVE) {
-        return;
-      }
-      PVector wp = aiPatrolPoints.get(aiPatrolIndex);
-      if (PVector.dist(pos, wp) < radius + 22) {
-        aiPatrolIndex = (aiPatrolIndex + 1) % aiPatrolPoints.size();
-        wp = aiPatrolPoints.get(aiPatrolIndex);
-      }
-      if (pathQueue.size() == 0 && orderType == UnitOrderType.NONE) {
-        issueMove(wp.copy(), gs, false);
-      }
-    }
+    UNIT_COMBAT_LOGIC.updateCombatAi(this, gs);
   }
 
   void updatePlayerDefensiveCombatAi(GameState gs) {
-    if (gs == null || !canAttack || canHarvest || !autoDefend) {
-      return;
-    }
-    if (gs.attackMoveArmed) {
-      return;
-    }
-    if (orderType != UnitOrderType.NONE || state != UnitState.IDLE) {
-      return;
-    }
-    if (aiThinkTimer > 0) {
-      return;
-    }
-    aiThinkTimer = random(0.12, 0.22);
-    Unit visible = gs.findHostileInRange(this, sightRange, gs);
-    if (visible != null) {
-      issueAttack(visible);
-    }
+    UNIT_COMBAT_LOGIC.updatePlayerDefensiveCombatAi(this, gs);
   }
 
   String aiDebugStateLabel() {
@@ -721,58 +650,7 @@ class Unit extends Entity {
   }
 
   void render(Camera camera) {
-    pushStyle();
-    PVector s = camera.worldToScreen(pos.x, pos.y);
-    float rr = radius * camera.zoom;
-    noStroke();
-    fill(factionColor(faction));
-    ellipse(s.x, s.y, rr * 2, rr * 2);
-    if (selected) {
-      noFill();
-      stroke(20, 240, 90);
-      strokeWeight(2);
-      ellipse(s.x, s.y, (rr + 5) * 2, (rr + 5) * 2);
-    }
-
-    if (hp > 0 && hp < 100) {
-      noStroke();
-      fill(20, 20, 20);
-      rect(s.x - 14, s.y - radius - 10, 28, 4);
-      fill(80, 220, 100);
-      rect(s.x - 14, s.y - radius - 10, 28 * constrain(hp / 100.0, 0, 1), 4);
-    }
-
-    if (canHarvest && harvestTimer > 0) {
-      float k = constrain(harvestTimer / max(0.01, harvestTime), 0, 1);
-      noFill();
-      stroke(255, 220, 90, 180);
-      strokeWeight(1.5);
-      float pr = (radius + 6 + (1 - k) * 8) * camera.zoom;
-      ellipse(s.x, s.y, pr * 2, pr * 2);
-      noStroke();
-      fill(255, 230, 130, 180);
-      ellipse(s.x + pr * 0.2, s.y - pr * 0.2, 3 * camera.zoom, 3 * camera.zoom);
-    }
-
-    String unitLabel = "UNIT";
-    if (unitType.equals("miner")) {
-      unitLabel = "MINER";
-    } else if (unitType.equals("rifleman")) {
-      unitLabel = "RIFLE";
-    } else if (unitType.equals("rocketeer")) {
-      unitLabel = "ROCKET";
-    }
-    float tagW = 52;
-    float tagH = 12;
-    noStroke();
-    fill(18, 18, 18, 175);
-    rect(s.x - tagW * 0.5, s.y - rr - 20, tagW, tagH);
-    fill(240);
-    textSize(9);
-    textAlign(CENTER, TOP);
-    text(unitLabel, s.x, s.y - rr - 19);
-    textAlign(LEFT, TOP);
-    popStyle();
+    UNIT_RENDERER.render(this, camera);
   }
 }
 
@@ -801,75 +679,7 @@ class Building extends Entity {
   }
 
   void render(Camera camera, int tileSize) {
-    pushStyle();
-    PVector s = camera.worldToScreen(pos.x, pos.y);
-    float sw = tileW * tileSize * camera.zoom;
-    float sh = tileH * tileSize * camera.zoom;
-    noStroke();
-    int base = factionColor(faction);
-    if (!completed) {
-      fill(red(base), green(base), blue(base), 120);
-    } else {
-      fill(base, 220);
-    }
-    rect(s.x, s.y, sw, sh);
-    stroke(40);
-    strokeWeight(1);
-    noFill();
-    rect(s.x, s.y, sw, sh);
-    if (selected) {
-      stroke(20, 240, 90);
-      strokeWeight(2);
-      noFill();
-      rect(s.x - 2, s.y - 2, sw + 4, sh + 4);
-    }
-
-    if (!completed) {
-      float pct = constrain(buildProgress / buildTime, 0, 1);
-      noStroke();
-      fill(20, 20, 20, 220);
-      rect(s.x, s.y - 8, sw, 5);
-      fill(80, 230, 110);
-      rect(s.x, s.y - 8, sw * pct, 5);
-    }
-    if (completed && hp < maxHp) {
-      noStroke();
-      fill(20, 20, 20, 220);
-      rect(s.x, s.y - 8, sw, 5);
-      fill(95, 220, 110);
-      rect(s.x, s.y - 8, sw * constrain(hp / float(max(1, maxHp)), 0, 1), 5);
-    }
-
-    // Building type marker for quick battlefield identification.
-    String label = buildingType == null ? "BUILDING" : buildingType.toUpperCase();
-    fill(18, 18, 18, 180);
-    rect(s.x, s.y - 24, min(sw, 90), 14);
-    fill(245);
-    textSize(10);
-    textAlign(LEFT, TOP);
-    text(label, s.x + 3, s.y - 22);
-
-    if (buildingType != null && buildingType.equals("tower") && completed) {
-      float cx = s.x + sw * 0.5;
-      float cy = s.y + sh * 0.52;
-      float bodyR = max(4, min(sw, sh) * 0.22);
-      noStroke();
-      fill(48, 52, 60, 220);
-      ellipse(cx, cy, bodyR * 2.3, bodyR * 2.3);
-      fill(90, 96, 110, 220);
-      ellipse(cx, cy, bodyR * 1.3, bodyR * 1.3);
-      float ang = turretAimAngle;
-      float barrelLen = max(6, min(sw, sh) * 0.62);
-      float bx = cx + cos(ang) * barrelLen;
-      float by = cy + sin(ang) * barrelLen;
-      stroke(120, 128, 145, 240);
-      strokeWeight(max(2, min(sw, sh) * 0.12));
-      line(cx, cy, bx, by);
-      noStroke();
-      fill(245, 180, 120, 220);
-      ellipse(bx, by, max(3, min(sw, sh) * 0.12), max(3, min(sw, sh) * 0.12));
-    }
-    popStyle();
+    BUILDING_RENDERER.render(this, camera, tileSize);
   }
 }
 

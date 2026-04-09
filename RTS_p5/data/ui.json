@@ -31,5 +31,9 @@
   "playerBaseSupplyCap": 8,
   "enemyBaseSupplyCap": 8,
   "warehouseSupplyCapBonus": 20,
-  "warehouseCreditCapBonus": 1000
+  "warehouseCreditCapBonus": 1000,
+  "gameSpeedDefault": 1.0,
+  "gameSpeedMin": 0.5,
+  "gameSpeedMax": 2.0,
+  "gameSpeedStep": 0.25
 }

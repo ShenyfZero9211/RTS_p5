@@ -57,6 +57,12 @@ class GameState {
   int warehouseCreditCapBonus = 1000;
   int defaultCreditCap = 2000;
   EnemyAiController enemyAi;
+  CombatSystem combatSystem;
+  ProductionSystem productionSystem;
+  GameFlowController gameFlow;
+  EffectsRuntime effectsRuntime;
+  UiSettingsLoader uiSettingsLoader;
+  DefinitionsLoader definitionsLoader;
   String orderLabel = "";
   boolean attackMoveArmed = false;
   boolean hardCursorLock = false;
@@ -94,6 +100,12 @@ class GameState {
     pathfinder = null;
     buildSystem = new BuildSystem(buildingDefs);
     enemyAi = null;
+    combatSystem = new CombatSystem();
+    productionSystem = new ProductionSystem();
+    gameFlow = new GameFlowController();
+    effectsRuntime = new EffectsRuntime();
+    uiSettingsLoader = new UiSettingsLoader();
+    definitionsLoader = new DefinitionsLoader();
     resetControlGroups();
     orderLabel = tr("order.none");
   }
@@ -276,202 +288,17 @@ class GameState {
   }
 
   void loadUiSettings() {
-    JSONObject root = loadJSONObject("ui.json");
-    if (root == null) {
-      return;
+    if (uiSettingsLoader == null) {
+      uiSettingsLoader = new UiSettingsLoader();
     }
-    sidePanelWidthRatio = root.getFloat("sidePanelWidthRatio", sidePanelWidthRatio);
-    sidePanelMinW = root.getInt("sidePanelMinW", sidePanelMinW);
-    sidePanelMaxW = root.getInt("sidePanelMaxW", sidePanelMaxW);
-    wheelZoomStep = root.getFloat("wheelZoomStep", wheelZoomStep);
-    edgeScrollSpeed = root.getFloat("edgeScrollSpeed", edgeScrollSpeed);
-    fogEnabled = root.getBoolean("fogEnabled", fogEnabled);
-    fogSoftEdges = root.getBoolean("fogSoftEdges", fogSoftEdges);
-    fogEdgeRadius = root.getInt("fogEdgeRadius", fogEdgeRadius);
-    fogEdgeStrength = root.getFloat("fogEdgeStrength", fogEdgeStrength);
-    fogUpdateInterval = root.getFloat("fogUpdateInterval", fogUpdateInterval);
-    fogBatchSourcesPerFrame = root.getInt("fogBatchSourcesPerFrame", fogBatchSourcesPerFrame);
-    fogAutoAdaptiveInterval = root.getBoolean("fogAutoAdaptiveInterval", fogAutoAdaptiveInterval);
-    fogAutoAdaptiveThreshold = root.getInt("fogAutoAdaptiveThreshold", fogAutoAdaptiveThreshold);
-    fogAutoAdaptiveStep = root.getFloat("fogAutoAdaptiveStep", fogAutoAdaptiveStep);
-    fogAutoAdaptiveMaxInterval = root.getFloat("fogAutoAdaptiveMaxInterval", fogAutoAdaptiveMaxInterval);
-    fogUnexploredAlpha = root.getInt("fogUnexploredAlpha", fogUnexploredAlpha);
-    fogExploredAlpha = root.getInt("fogExploredAlpha", fogExploredAlpha);
-    enemyAiDecisionInterval = root.getFloat("enemyAiDecisionInterval", enemyAiDecisionInterval);
-    enemyAiMinersMin = root.getInt("enemyAiMinersMin", enemyAiMinersMin);
-    enemyAiMinersMax = root.getInt("enemyAiMinersMax", enemyAiMinersMax);
-    enemyAiAttackInterval = root.getFloat("enemyAiAttackInterval", enemyAiAttackInterval);
-    enemyAiAttackAdvantage = root.getFloat("enemyAiAttackAdvantage", enemyAiAttackAdvantage);
-    enemyAiAttackMinArmy = root.getInt("enemyAiAttackMinArmy", enemyAiAttackMinArmy);
-    enemyAiRifleRatio = root.getFloat("enemyAiRifleRatio", enemyAiRifleRatio);
-    enemyAiRocketRatio = root.getFloat("enemyAiRocketRatio", enemyAiRocketRatio);
-    enemyAiDebug = root.getBoolean("enemyAiDebug", enemyAiDebug);
-    playerStartCredits = root.getInt("playerStartCredits", playerStartCredits);
-    enemyStartCredits = root.getInt("enemyStartCredits", enemyStartCredits);
-    defaultCreditCap = root.getInt("defaultCreditCap", defaultCreditCap);
-    playerBaseSupplyCap = root.getInt("playerBaseSupplyCap", playerBaseSupplyCap);
-    enemyBaseSupplyCap = root.getInt("enemyBaseSupplyCap", enemyBaseSupplyCap);
-    warehouseSupplyCapBonus = root.getInt("warehouseSupplyCapBonus", warehouseSupplyCapBonus);
-    warehouseCreditCapBonus = root.getInt("warehouseCreditCapBonus", warehouseCreditCapBonus);
-    sidePanelWidthRatio = constrain(sidePanelWidthRatio, 0.12, 0.45);
-    sidePanelMinW = max(180, sidePanelMinW);
-    sidePanelMaxW = max(sidePanelMinW, sidePanelMaxW);
-    wheelZoomStep = constrain(wheelZoomStep, 1.02, 1.35);
-    edgeScrollSpeed = constrain(edgeScrollSpeed, 160, 1800);
-    fogEdgeRadius = int(constrain(fogEdgeRadius, 1, 4));
-    fogEdgeStrength = constrain(fogEdgeStrength, 0.10, 0.80);
-    fogUpdateInterval = constrain(fogUpdateInterval, 0.02, 0.30);
-    fogBatchSourcesPerFrame = int(constrain(fogBatchSourcesPerFrame, 2, 128));
-    fogAutoAdaptiveThreshold = int(constrain(fogAutoAdaptiveThreshold, 0, 2000));
-    fogAutoAdaptiveStep = constrain(fogAutoAdaptiveStep, 0.0, 0.03);
-    fogAutoAdaptiveMaxInterval = constrain(fogAutoAdaptiveMaxInterval, fogUpdateInterval, 0.8);
-    fogUnexploredAlpha = int(constrain(fogUnexploredAlpha, 80, 255));
-    fogExploredAlpha = int(constrain(fogExploredAlpha, 30, 220));
-    enemyAiDecisionInterval = constrain(enemyAiDecisionInterval, 0.08, 0.8);
-    enemyAiMinersMin = int(constrain(enemyAiMinersMin, 1, 24));
-    enemyAiMinersMax = int(constrain(enemyAiMinersMax, enemyAiMinersMin, 32));
-    enemyAiAttackInterval = constrain(enemyAiAttackInterval, 12, 180);
-    enemyAiAttackAdvantage = constrain(enemyAiAttackAdvantage, 0.7, 2.4);
-    enemyAiAttackMinArmy = int(constrain(enemyAiAttackMinArmy, 2, 40));
-    enemyAiRifleRatio = constrain(enemyAiRifleRatio, 0.10, 0.80);
-    enemyAiRocketRatio = constrain(enemyAiRocketRatio, 0.05, 0.70);
-    playerStartCredits = int(constrain(playerStartCredits, 0, 99999));
-    enemyStartCredits = int(constrain(enemyStartCredits, 0, 99999));
-    defaultCreditCap = int(constrain(defaultCreditCap, 200, 999999));
-    playerBaseSupplyCap = int(constrain(playerBaseSupplyCap, 1, 300));
-    enemyBaseSupplyCap = int(constrain(enemyBaseSupplyCap, 1, 300));
-    warehouseSupplyCapBonus = int(constrain(warehouseSupplyCapBonus, 1, 200));
-    warehouseCreditCapBonus = int(constrain(warehouseCreditCapBonus, 50, 100000));
+    uiSettingsLoader.apply(this);
   }
 
   void loadDefinitions() {
-    unitDefsById.clear();
-    buildingDefsById.clear();
-    scoutDef = new UnitDef();
-    scoutDef.id = "scout";
-    scoutDef.role = "machinegun";
-    scoutDef.speed = 120;
-    scoutDef.radius = 11;
-    scoutDef.hp = 100;
-    unitDefsById.put(scoutDef.id, scoutDef);
-
-    BuildingDef defaultOutpost = new BuildingDef();
-    defaultOutpost.id = "base";
-    defaultOutpost.category = "core";
-    defaultOutpost.tileW = 2;
-    defaultOutpost.tileH = 2;
-    defaultOutpost.buildTime = 3.0;
-    defaultOutpost.cost = 120;
-    defaultOutpost.prerequisites = new String[0];
-    defaultOutpost.trainableUnits = new String[0];
-    buildingDefs.add(defaultOutpost);
-    buildingDefsById.put(defaultOutpost.id, defaultOutpost);
-
-    JSONObject unitRoot = loadJSONObject("units.json");
-    if (unitRoot != null) {
-      JSONArray arr = unitRoot.getJSONArray("units");
-      if (arr != null && arr.size() > 0) {
-        unitDefsById.clear();
-        for (int i = 0; i < arr.size(); i++) {
-          JSONObject o = arr.getJSONObject(i);
-          UnitDef def = new UnitDef();
-          def.id = o.getString("id", "unit_" + i);
-          def.role = o.getString("role", "machinegun");
-          def.speed = o.getFloat("speed", 120);
-          def.radius = o.getFloat("radius", 11);
-          def.hp = o.getInt("hp", 100);
-          def.attackRange = o.getFloat("attackRange", 95);
-          def.attackDamage = o.getFloat("attackDamage", 8);
-          def.attackCooldown = o.getFloat("attackCooldown", 0.6);
-          def.canAttack = o.getBoolean("canAttack", true);
-          def.cost = o.getInt("cost", 60);
-          def.trainTime = o.getFloat("trainTime", 2.0);
-          def.sightRange = o.getFloat("sightRange", 220);
-          def.usesProjectile = o.getBoolean("usesProjectile", false);
-          def.projectileSpeed = o.getFloat("projectileSpeed", 260);
-          def.canHarvest = o.getBoolean("canHarvest", false);
-          def.harvestAmount = o.getInt("harvestAmount", 20);
-          def.harvestTime = o.getFloat("harvestTime", 1.2);
-          def.autoDefend = o.getBoolean("autoDefend", true);
-          def.supplyCost = max(0, o.getInt("supplyCost", 1));
-          unitDefsById.put(def.id, def);
-        }
-        if (unitDefsById.containsKey("rifleman")) {
-          scoutDef = unitDefsById.get("rifleman");
-        } else {
-          for (String key : unitDefsById.keySet()) {
-            scoutDef = unitDefsById.get(key);
-            break;
-          }
-        }
-      }
+    if (definitionsLoader == null) {
+      definitionsLoader = new DefinitionsLoader();
     }
-
-    JSONObject buildingRoot = loadJSONObject("buildings.json");
-    if (buildingRoot != null) {
-      JSONArray arr = buildingRoot.getJSONArray("buildings");
-      if (arr != null && arr.size() > 0) {
-        buildingDefs.clear();
-        buildingDefsById.clear();
-        for (int i = 0; i < arr.size(); i++) {
-          JSONObject o = arr.getJSONObject(i);
-          BuildingDef def = new BuildingDef();
-          def.id = o.getString("id", "building_" + i);
-          def.category = o.getString("category", "general");
-          def.tileW = o.getInt("tileW", 2);
-          def.tileH = o.getInt("tileH", 2);
-          def.buildTime = o.getFloat("buildTime", 3.0);
-          def.cost = o.getInt("cost", 120);
-          def.prerequisites = new String[0];
-          def.trainableUnits = new String[0];
-          JSONArray req = o.getJSONArray("requires");
-          if (req != null) {
-            def.prerequisites = new String[req.size()];
-            for (int r = 0; r < req.size(); r++) {
-              def.prerequisites[r] = req.getString(r);
-            }
-          }
-          def.canTrainUnits = o.getBoolean("canTrainUnits", false);
-          JSONArray train = o.getJSONArray("trainableUnits");
-          if (train != null) {
-            def.trainableUnits = new String[train.size()];
-            for (int t = 0; t < train.size(); t++) {
-              def.trainableUnits[t] = train.getString(t);
-            }
-          }
-          def.isDropoff = o.getBoolean("isDropoff", false);
-          def.isMainBase = o.getBoolean("isMainBase", false);
-          def.sellRefundRatio = constrain(o.getFloat("sellRefundRatio", 0.5), 0, 1);
-          def.isTower = o.getBoolean("isTower", false);
-          def.towerAttackRange = o.getFloat("towerAttackRange", def.towerAttackRange);
-          def.towerDamage = o.getFloat("towerDamage", def.towerDamage);
-          def.towerCooldown = o.getFloat("towerCooldown", def.towerCooldown);
-          def.towerProjectileSpeed = o.getFloat("towerProjectileSpeed", def.towerProjectileSpeed);
-          def.useLegacySpawnFallback = o.getBoolean("useLegacySpawnFallback", true);
-          def.spawnClearancePad = o.getFloat("spawnClearancePad", 3.0);
-          int defaultSupplyBonus = "warehouse".equals(def.id) ? warehouseSupplyCapBonus : 0;
-          int defaultCreditBonus = "warehouse".equals(def.id) ? warehouseCreditCapBonus : 0;
-          def.supplyCapBonus = max(0, o.getInt("supplyCapBonus", defaultSupplyBonus));
-          def.creditCapBonus = max(0, o.getInt("creditCapBonus", defaultCreditBonus));
-          JSONArray spawnPointsArr = o.getJSONArray("spawnPoints");
-          if (spawnPointsArr != null) {
-            def.spawnPoints = new SpawnPointDef[spawnPointsArr.size()];
-            for (int s = 0; s < spawnPointsArr.size(); s++) {
-              JSONObject so = spawnPointsArr.getJSONObject(s);
-              SpawnPointDef sp = new SpawnPointDef();
-              sp.mode = so.getString("mode", "localTile");
-              sp.x = so.getFloat("x", 0);
-              sp.y = so.getFloat("y", 0);
-              def.spawnPoints[s] = sp;
-            }
-          } else {
-            def.spawnPoints = new SpawnPointDef[0];
-          }
-          buildingDefs.add(def);
-          buildingDefsById.put(def.id, def);
-        }
-      }
-    }
+    definitionsLoader.apply(this);
   }
 
   void loadMapResources() {
@@ -525,13 +352,7 @@ class GameState {
     }
     input.update(dt);
     buildSystem.update(dt, buildings);
-    for (int i = orderMarkers.size() - 1; i >= 0; i--) {
-      OrderMarker m = orderMarkers.get(i);
-      m.ttl -= dt;
-      if (m.ttl <= 0) {
-        orderMarkers.remove(i);
-      }
-    }
+    effectsRuntime.updateOrderMarkers(this, dt);
     for (int i = units.size() - 1; i >= 0; i--) {
       Unit u = units.get(i);
       u.update(dt, this);
@@ -619,9 +440,7 @@ class GameState {
 
     // Render order markers on top of fog/UI-world boundary so they are always visible.
     pushStyle();
-    for (OrderMarker m : orderMarkers) {
-      m.render(camera);
-    }
+    effectsRuntime.renderOrderMarkers(this);
     popStyle();
 
     ui.render(this);
@@ -639,6 +458,64 @@ class GameState {
     }
     selectedBuilding = null;
     selectedUnits.clear();
+  }
+
+  // Command boundary methods used by input/UI/AI adapters.
+  void setAttackMoveArmed(boolean armed) {
+    attackMoveArmed = armed;
+    orderLabel = attackMoveArmed ? tr("order.attackMoveArmed") : tr("order.attackMoveCancel");
+  }
+
+  void issueMoveCommand(PVector world, boolean queue) {
+    if (selectedUnits.size() <= 0 || world == null) return;
+    clearSelectedHarvestOrders();
+    commandSystem.moveSelected(this, selectedUnits, world, queue);
+    orderLabel = queue ? tr("order.queueMove") : tr("order.move");
+    addOrderMarker(world.copy(), false);
+    attackMoveArmed = false;
+  }
+
+  void issueAttackMoveCommand(PVector world, boolean queue) {
+    if (selectedUnits.size() <= 0 || world == null) return;
+    clearSelectedHarvestOrders();
+    commandSystem.attackMoveSelected(this, selectedUnits, world, queue);
+    orderLabel = tr("order.attackMove");
+    addOrderMarker(world.copy(), true);
+    attackMoveArmed = false;
+  }
+
+  void issueAttackUnitCommand(Unit target) {
+    if (selectedUnits.size() <= 0 || target == null) return;
+    clearSelectedHarvestOrders();
+    commandSystem.attackSelected(selectedUnits, target);
+    orderLabel = tr("order.attack");
+    addOrderMarker(target.pos.copy(), true);
+    attackMoveArmed = false;
+  }
+
+  void issueAttackBuildingCommand(Building target) {
+    if (selectedUnits.size() <= 0 || target == null) return;
+    clearSelectedHarvestOrders();
+    commandSystem.attackSelectedBuilding(selectedUnits, target);
+    PVector bc = new PVector(target.pos.x + target.tileW * map.tileSize * 0.5, target.pos.y + target.tileH * map.tileSize * 0.5);
+    orderLabel = tr("order.attackBuilding");
+    addOrderMarker(bc, true);
+    attackMoveArmed = false;
+  }
+
+  void cancelBuildPlacement() {
+    if (!buildSystem.active) return;
+    buildSystem.active = false;
+    buildSystem.lastFailReason = "";
+    ui.clearBuildButtonState();
+    orderLabel = tr("order.buildCancel");
+  }
+
+  void setSelectedBuildingRally(PVector world) {
+    if (selectedBuilding == null || world == null) return;
+    selectedBuilding.rallyPoint = world.copy();
+    orderLabel = tr("order.rallySet");
+    addOrderMarker(world.copy(), false);
   }
 
   void resetControlGroups() {
@@ -1452,196 +1329,43 @@ class GameState {
   }
 
   TrainJob activeTrainJobFor(Building trainer) {
-    for (TrainJob j : trainQueue) {
-      if (j.trainer == trainer) {
-        return j;
-      }
-    }
-    return null;
+    return productionSystem.activeTrainJobFor(this, trainer);
   }
 
   void removeTrainingJobsForTrainer(Building trainer) {
-    for (int i = trainQueue.size() - 1; i >= 0; i--) {
-      if (trainQueue.get(i).trainer == trainer) {
-        trainQueue.remove(i);
-      }
-    }
+    productionSystem.removeTrainingJobsForTrainer(this, trainer);
   }
 
   boolean isFirstTrainJobForTrainer(Building trainer, int queueIndex) {
-    for (int k = 0; k < queueIndex; k++) {
-      if (trainQueue.get(k).trainer == trainer) {
-        return false;
-      }
-    }
-    return true;
+    return productionSystem.isFirstTrainJobForTrainer(this, trainer, queueIndex);
   }
 
   boolean buildingHostsTrainQueue(Building b) {
-    if (b == null) {
-      return false;
-    }
-    for (int i = 0; i < buildings.size(); i++) {
-      if (buildings.get(i) == b) {
-        return true;
-      }
-    }
-    return false;
+    return productionSystem.buildingHostsTrainQueue(this, b);
   }
 
   void updateTrainQueue(float dt) {
-    if (gameEnded) {
-      return;
-    }
-    for (int i = trainQueue.size() - 1; i >= 0; i--) {
-      TrainJob j = trainQueue.get(i);
-      if (j.trainer == null || j.trainer.hp <= 0 || !j.trainer.completed || !buildingHostsTrainQueue(j.trainer)) {
-        trainQueue.remove(i);
-      }
-    }
-    for (int i = 0; i < trainQueue.size(); i++) {
-      TrainJob j = trainQueue.get(i);
-      if (!isFirstTrainJobForTrainer(j.trainer, i)) {
-        continue;
-      }
-      j.timeRemaining -= dt;
-      if (j.timeRemaining <= 0) {
-        UnitDef def = getUnitDef(j.unitId);
-        if (def != null && j.trainer != null && buildingHostsTrainQueue(j.trainer)) {
-          PVector spawn = findSpawnForTrainer(j.trainer, def.radius);
-          Unit nu = new Unit(spawn.x, spawn.y, j.faction, def);
-          units.add(nu);
-          if (j.trainer.rallyPoint != null && j.trainer.completed) {
-            nu.issueMove(j.trainer.rallyPoint.copy(), this, false);
-          }
-        }
-        trainQueue.remove(i);
-        i--;
-      }
-    }
+    productionSystem.updateTrainQueue(this, dt);
   }
 
   void updateTowerDefense(float dt) {
-    if (gameEnded) {
-      return;
-    }
-    for (Building b : buildings) {
-      if (!b.completed || b.hp <= 0) {
-        continue;
-      }
-      BuildingDef ddef = getBuildingDef(b.buildingType);
-      if (ddef == null || !ddef.isTower) {
-        continue;
-      }
-      b.towerCooldown = max(0, b.towerCooldown - dt);
-      if (b.towerCooldown > 0) {
-        continue;
-      }
-      float range = ddef.towerAttackRange;
-      Unit tgt = findTowerHostileUnitInRange(b, range);
-      Building bt = null;
-      if (tgt == null) {
-        bt = findTowerHostileBuildingInRange(b, range);
-        if (bt == null) {
-          continue;
-        }
-      }
-      PVector muzzle = towerMuzzleWorld(b);
-      float cx = b.pos.x + b.tileW * map.tileSize * 0.5;
-      float cy = b.pos.y + b.tileH * map.tileSize * 0.5;
-      if (tgt != null) {
-        b.turretAimAngle = atan2(tgt.pos.y - cy, tgt.pos.x - cx);
-        spawnRocketProjectileFromWorld(muzzle, tgt, ddef.towerDamage, ddef.towerProjectileSpeed);
-      } else {
-        PVector bc = new PVector(bt.pos.x + bt.tileW * map.tileSize * 0.5, bt.pos.y + bt.tileH * map.tileSize * 0.5);
-        b.turretAimAngle = atan2(bc.y - cy, bc.x - cx);
-        spawnRocketProjectileFromWorld(muzzle, bt, ddef.towerDamage, ddef.towerProjectileSpeed);
-      }
-      b.towerCooldown = ddef.towerCooldown;
-    }
+    combatSystem.updateTowerDefense(this, dt);
   }
 
   PVector towerMuzzleWorld(Building b) {
-    float ts = map.tileSize;
-    float cx = b.pos.x + b.tileW * ts * 0.5;
-    float cy = b.pos.y + b.tileH * ts * 0.5;
-    return new PVector(cx, cy - ts * 0.20);
+    return combatSystem.towerMuzzleWorld(this, b);
   }
 
   Unit findTowerHostileUnitInRange(Building tower, float rangePx) {
-    float cx = tower.pos.x + tower.tileW * map.tileSize * 0.5;
-    float cy = tower.pos.y + tower.tileH * map.tileSize * 0.5;
-    Unit best = null;
-    float bestScore = 1e9;
-    for (Unit u : units) {
-      if (u.hp <= 0 || !isHostile(tower.faction, u.faction)) {
-        continue;
-      }
-      float d = dist(cx, cy, u.pos.x, u.pos.y);
-      if (d > rangePx) {
-        continue;
-      }
-      if (tower.faction == Faction.PLAYER && !isUnitVisibleToPlayer(u)) {
-        continue;
-      }
-      float score = d + u.hp * 0.2;
-      if (score < bestScore) {
-        bestScore = score;
-        best = u;
-      }
-    }
-    return best;
+    return combatSystem.findTowerHostileUnitInRange(this, tower, rangePx);
   }
 
   Building findTowerHostileBuildingInRange(Building tower, float rangePx) {
-    float cx = tower.pos.x + tower.tileW * map.tileSize * 0.5;
-    float cy = tower.pos.y + tower.tileH * map.tileSize * 0.5;
-    Building best = null;
-    float bestScore = 1e9;
-    for (Building b : buildings) {
-      if (b == null || b.hp <= 0 || !isHostile(tower.faction, b.faction)) {
-        continue;
-      }
-      float bx = b.pos.x + b.tileW * map.tileSize * 0.5;
-      float by = b.pos.y + b.tileH * map.tileSize * 0.5;
-      float d = dist(cx, cy, bx, by);
-      if (d > rangePx) {
-        continue;
-      }
-      if (tower.faction == Faction.PLAYER && !isBuildingVisibleToPlayer(b)) {
-        continue;
-      }
-      float score = d + b.hp * 0.1;
-      if (score < bestScore) {
-        bestScore = score;
-        best = b;
-      }
-    }
-    return best;
+    return combatSystem.findTowerHostileBuildingInRange(this, tower, rangePx);
   }
 
   boolean tryTrainUnitForFaction(Faction faction, String unitId) {
-    UnitDef def = getUnitDef(unitId);
-    if (def == null) {
-      return false;
-    }
-    ResourcePool pool = resourcePoolForFaction(faction);
-    if (pool == null || !pool.canAfford(def.cost)) {
-      return false;
-    }
-    int needSupply = max(0, def.supplyCost);
-    if (usedSupplyForFaction(faction) + needSupply > supplyCapForFaction(faction)) {
-      return false;
-    }
-    Building trainer = pickTrainerForUnit(faction, unitId);
-    if (trainer == null) {
-      return false;
-    }
-    if (!pool.spend(def.cost)) {
-      return false;
-    }
-    trainQueue.add(new TrainJob(trainer, unitId, def.trainTime, faction));
-    return true;
+    return productionSystem.tryTrainUnitForFaction(this, faction, unitId);
   }
 
   PVector enemyRallyPoint() {
@@ -1742,97 +1466,51 @@ class GameState {
   }
 
   void spawnMuzzleFx(Unit shooter, PVector targetPos) {
-    muzzleFx.add(new MuzzleFx(shooter.pos.copy(), targetPos));
+    effectsRuntime.spawnMuzzleFx(this, shooter, targetPos);
   }
 
   void updateMuzzleFx(float dt) {
-    for (int i = muzzleFx.size() - 1; i >= 0; i--) {
-      MuzzleFx fx = muzzleFx.get(i);
-      fx.ttl -= dt;
-      if (fx.ttl <= 0) {
-        muzzleFx.remove(i);
-      }
-    }
+    effectsRuntime.updateMuzzleFx(this, dt);
   }
 
   void renderMuzzleFx() {
-    for (MuzzleFx fx : muzzleFx) {
-      fx.render(camera);
-    }
+    effectsRuntime.renderMuzzleFx(this);
   }
 
   void spawnDeliveryFx(PVector worldPos, int amount) {
-    if (amount <= 0) {
-      return;
-    }
-    deliveries.add(new DeliveryFx(worldPos.copy(), amount));
+    effectsRuntime.spawnDeliveryFx(this, worldPos, amount);
   }
 
   void updateDeliveryFx(float dt) {
-    for (int i = deliveries.size() - 1; i >= 0; i--) {
-      DeliveryFx fx = deliveries.get(i);
-      fx.ttl -= dt;
-      if (fx.ttl <= 0) {
-        deliveries.remove(i);
-      }
-    }
+    effectsRuntime.updateDeliveryFx(this, dt);
   }
 
   void renderDeliveryFx() {
-    for (DeliveryFx fx : deliveries) {
-      fx.render(camera);
-    }
+    effectsRuntime.renderDeliveryFx(this);
   }
 
   void spawnRocketProjectile(Unit from, Unit target, float dmg, float speed) {
-    if (target == null || target.hp <= 0) {
-      return;
-    }
-    rockets.add(new RocketProjectile(from.pos.copy(), target, dmg, speed));
+    combatSystem.spawnRocketProjectile(this, from, target, dmg, speed);
   }
 
   void spawnRocketProjectile(Unit from, Building target, float dmg, float speed) {
-    if (from == null || target == null || target.hp <= 0 || map == null) {
-      return;
-    }
-    PVector center = new PVector(
-      target.pos.x + target.tileW * map.tileSize * 0.5,
-      target.pos.y + target.tileH * map.tileSize * 0.5
-      );
-    rockets.add(new RocketProjectile(from.pos.copy(), target, center, dmg, speed));
+    combatSystem.spawnRocketProjectile(this, from, target, dmg, speed);
   }
 
   void spawnRocketProjectileFromWorld(PVector worldStart, Unit target, float dmg, float speed) {
-    if (worldStart == null || target == null || target.hp <= 0) {
-      return;
-    }
-    rockets.add(new RocketProjectile(worldStart.copy(), target, dmg, speed));
+    combatSystem.spawnRocketProjectileFromWorld(this, worldStart, target, dmg, speed);
   }
 
   void spawnRocketProjectileFromWorld(PVector worldStart, Building target, float dmg, float speed) {
-    if (worldStart == null || target == null || target.hp <= 0 || map == null) {
-      return;
-    }
-    PVector center = new PVector(
-      target.pos.x + target.tileW * map.tileSize * 0.5,
-      target.pos.y + target.tileH * map.tileSize * 0.5
-      );
-    rockets.add(new RocketProjectile(worldStart.copy(), target, center, dmg, speed));
+    combatSystem.spawnRocketProjectileFromWorld(this, worldStart, target, dmg, speed);
   }
 
   void updateRockets(float dt) {
-    for (int i = rockets.size() - 1; i >= 0; i--) {
-      RocketProjectile p = rockets.get(i);
-      if (p.update(dt)) {
-        rockets.remove(i);
-      }
-    }
+    combatSystem.updateRockets(this, dt);
   }
 
   void renderRockets() {
-    for (RocketProjectile p : rockets) {
-      p.render(camera);
-    }
+    combatSystem.renderRockets(this);
   }
 
   int countFactionUnits(Faction f) {
@@ -1856,113 +1534,15 @@ class GameState {
   }
 
   void checkWinCondition() {
-    if (gameEnded || map == null) {
-      return;
-    }
-    boolean playerAlive = countFactionUnits(Faction.PLAYER) + countFactionBuildings(Faction.PLAYER) > 0;
-    boolean enemyAlive = countFactionUnits(Faction.ENEMY) + countFactionBuildings(Faction.ENEMY) > 0;
-    if (!playerAlive || !enemyAlive) {
-      gameEnded = true;
-      if (!playerAlive && !enemyAlive) {
-        gameResult = "DRAW";
-      } else if (!playerAlive) {
-        gameResult = "DEFEAT";
-      } else {
-        gameResult = "VICTORY";
-      }
-      orderLabel = tr("order.gameOver");
-      buildSystem.active = false;
-    }
+    gameFlow.checkWinCondition(this);
   }
 
   void renderGameEndOverlay() {
-    gameEndHitButtons.clear();
-    fill(0, 0, 0, 140);
-    rect(0, 0, worldViewW, screenH);
-
-    float cx = worldViewW * 0.5;
-    float boxW = min(440, worldViewW - 36);
-    float boxH = 210;
-    float bx = cx - boxW * 0.5;
-    float by = screenH * 0.5 - boxH * 0.5;
-
-    ui.uiWidgets.drawChamferFill(bx, by, boxW, boxH, 10, color(28, 30, 34));
-    ui.uiWidgets.drawChamferStroke(bx, by, boxW, boxH, 10, color(130, 140, 155), 2);
-    ui.uiWidgets.drawCornerRivets(bx, by, boxW, boxH, 10);
-
-    fill(255);
-    textAlign(CENTER, CENTER);
-    textSize(26);
-    String title = gameResult;
-    if ("DEFEAT".equals(gameResult)) {
-      title = tr("overlay.defeat");
-    } else if ("VICTORY".equals(gameResult)) {
-      title = tr("overlay.victory");
-    } else if ("DRAW".equals(gameResult)) {
-      title = tr("overlay.draw");
-    }
-    text(title, cx, by + 38);
-    textSize(13);
-    fill(200);
-    text(tr("overlay.desc"), cx, by + 74);
-
-    float btnW = 148;
-    float btnH = 42;
-    float gap = 16;
-    float btnY = by + boxH - 58;
-    UiHitButton replay = new UiHitButton();
-    replay.x = cx - btnW - gap * 0.5;
-    replay.y = btnY;
-    replay.w = btnW;
-    replay.h = btnH;
-    replay.chamfer = 5;
-    replay.label = tr("overlay.replay");
-    replay.sublabel = tr("overlay.replay");
-    replay.actionId = "end:replay";
-    replay.style = 3;
-    replay.enabled = true;
-    replay.hovered = mouseX >= replay.x && mouseX <= replay.x + replay.w && mouseY >= replay.y && mouseY <= replay.y + replay.h;
-    gameEndHitButtons.add(replay);
-    ui.uiWidgets.drawHitButton(replay);
-
-    UiHitButton menu = new UiHitButton();
-    menu.x = gap * 0.5 + cx;
-    menu.y = btnY;
-    menu.w = btnW;
-    menu.h = btnH;
-    menu.chamfer = 5;
-    menu.label = tr("overlay.menu");
-    menu.sublabel = tr("overlay.menu");
-    menu.actionId = "end:menu";
-    menu.style = 3;
-    menu.enabled = true;
-    menu.hovered = mouseX >= menu.x && mouseX <= menu.x + menu.w && mouseY >= menu.y && mouseY <= menu.y + menu.h;
-    gameEndHitButtons.add(menu);
-    ui.uiWidgets.drawHitButton(menu);
-
-    textAlign(LEFT, TOP);
+    gameFlow.renderGameEndOverlay(this);
   }
 
   void handleGameEndOverlayClick(int mx, int my, int button) {
-    if (button != LEFT) {
-      return;
-    }
-    for (int i = gameEndHitButtons.size() - 1; i >= 0; i--) {
-      UiHitButton b = gameEndHitButtons.get(i);
-      if (!b.enabled || !ui.uiWidgets.hitContains(b, mx, my)) {
-        continue;
-      }
-      if ("end:replay".equals(b.actionId)) {
-        startNewGame();
-        return;
-      }
-      if ("end:menu".equals(b.actionId)) {
-        pendingReturnToMenu = true;
-        gameEnded = false;
-        shutdownSessionForMenu();
-        return;
-      }
-    }
+    gameFlow.handleGameEndOverlayClick(this, mx, my, button);
   }
 
   void shutdownSessionForMenu() {
@@ -1990,96 +1570,15 @@ class GameState {
   }
 
   boolean trainUnitAtSelectedBuilding(String unitId) {
-    if (gameEnded) {
-      return false;
-    }
-    if (selectedUnits.size() > 0) {
-      return false;
-    }
-    if (selectedBuilding == null || selectedBuilding.faction != activeFaction || !selectedBuilding.completed) {
-      orderLabel = tr("order.selectProducer");
-      return false;
-    }
-    BuildingDef bdef = getBuildingDef(selectedBuilding.buildingType);
-    if (bdef == null || !bdef.canTrainUnits || bdef.trainableUnits == null) {
-      orderLabel = tr("order.noTrainHere");
-      return false;
-    }
-    boolean allowed = false;
-    for (int i = 0; i < bdef.trainableUnits.length; i++) {
-      if (bdef.trainableUnits[i].equals(unitId)) {
-        allowed = true;
-        break;
-      }
-    }
-    if (!allowed) {
-      orderLabel = tr("order.unitNotInRoster");
-      return false;
-    }
-    UnitDef def = getUnitDef(unitId);
-    if (def == null) {
-      return false;
-    }
-    if (!resources.canAfford(def.cost)) {
-      orderLabel = tr("order.needCredits");
-      return false;
-    }
-    int needSupply = max(0, def.supplyCost);
-    if (usedSupplyForFaction(activeFaction) + needSupply > supplyCapForFaction(activeFaction)) {
-      orderLabel = tr("order.needSupply");
-      return false;
-    }
-    if (!resources.spend(def.cost)) {
-      return false;
-    }
-    trainQueue.add(new TrainJob(selectedBuilding, unitId, def.trainTime, activeFaction));
-    orderLabel = tr("order.train") + ":" + unitId;
-    return true;
+    return productionSystem.trainUnitAtSelectedBuilding(this, unitId);
   }
 
   PVector findSpawnForTrainer(Building trainer, float unitRadius) {
-    if (trainer == null) {
-      return new PVector(0, 0);
-    }
-    BuildingDef bdef = getBuildingDef(trainer.buildingType);
-    if (bdef != null && bdef.spawnPoints != null && bdef.spawnPoints.length > 0) {
-      PVector configured = findConfiguredSpawnNearBuilding(trainer, bdef, unitRadius);
-      if (configured != null) {
-        return configured;
-      }
-    }
-    return findSpawnNearBuildingAvoidingUnits(trainer, unitRadius, new ArrayList<String>());
+    return productionSystem.findSpawnForTrainer(this, trainer, unitRadius);
   }
 
   PVector findConfiguredSpawnNearBuilding(Building b, BuildingDef bdef, float unitRadius) {
-    float ts = map.tileSize;
-    float pad = max(0, bdef.spawnClearancePad);
-    for (int i = 0; i < bdef.spawnPoints.length; i++) {
-      SpawnPointDef sp = bdef.spawnPoints[i];
-      PVector seed = null;
-      if ("localWorld".equals(sp.mode)) {
-        seed = new PVector(b.pos.x + sp.x * ts, b.pos.y + sp.y * ts);
-      } else {
-        seed = new PVector(b.pos.x + (sp.x + 0.5) * ts, b.pos.y + (sp.y + 0.5) * ts);
-      }
-      int tx = map.toTileX(seed.x);
-      int ty = map.toTileY(seed.y);
-      PVector walkable = pathfinder.findClosestWalkable(tx, ty, buildings);
-      int wx = int(walkable.x);
-      int wy = int(walkable.y);
-      if (!pathfinder.isWalkable(wx, wy, buildings)) {
-        continue;
-      }
-      float worldX = (wx + 0.5) * ts;
-      float worldY = (wy + 0.5) * ts;
-      if (isWorldSpawnFreeOfUnits(worldX, worldY, unitRadius, pad)) {
-        return new PVector(worldX, worldY);
-      }
-    }
-    if (bdef.useLegacySpawnFallback) {
-      return findSpawnNearBuildingAvoidingUnits(b, unitRadius, new ArrayList<String>());
-    }
-    return null;
+    return productionSystem.findConfiguredSpawnNearBuilding(this, b, bdef, unitRadius);
   }
 
   PVector findSpawnAroundBuilding(Building b) {
@@ -2171,53 +1670,15 @@ class GameState {
   }
 
   int queuedTrainCountForUnit(Building trainer, String unitId) {
-    if (trainer == null || unitId == null) {
-      return 0;
-    }
-    int c = 0;
-    for (TrainJob j : trainQueue) {
-      if (j.trainer == trainer && unitId.equals(j.unitId)) {
-        c++;
-      }
-    }
-    return c;
+    return productionSystem.queuedTrainCountForUnit(this, trainer, unitId);
   }
 
   float activeTrainProgressForUnit(Building trainer, String unitId) {
-    if (trainer == null || unitId == null) {
-      return -1;
-    }
-    for (int i = 0; i < trainQueue.size(); i++) {
-      TrainJob j = trainQueue.get(i);
-      if (j.trainer == trainer && unitId.equals(j.unitId) && isFirstTrainJobForTrainer(trainer, i)) {
-        return j.progress01();
-      }
-    }
-    return -1;
+    return productionSystem.activeTrainProgressForUnit(this, trainer, unitId);
   }
 
   boolean cancelOneTrainJobForSelectedBuilding(String unitId) {
-    if (selectedBuilding == null || unitId == null || unitId.length() == 0) {
-      return false;
-    }
-    UnitDef def = getUnitDef(unitId);
-    if (def == null) {
-      return false;
-    }
-    // Prefer cancelling queued (later) jobs first.
-    for (int i = trainQueue.size() - 1; i >= 0; i--) {
-      TrainJob j = trainQueue.get(i);
-      if (j.trainer == selectedBuilding && unitId.equals(j.unitId)) {
-        trainQueue.remove(i);
-        ResourcePool pool = resourcePoolForFaction(activeFaction);
-        if (pool != null) {
-          pool.addCredits(def.cost);
-        }
-        orderLabel = tr("order.trainCancel") + ":" + unitId;
-        return true;
-      }
-    }
-    return false;
+    return productionSystem.cancelOneTrainJobForSelectedBuilding(this, unitId);
   }
 
   boolean cancelOneBuildJobByDef(String defId, Faction faction) {
@@ -2259,420 +1720,6 @@ class GameState {
   }
 }
 
-class TrainJob {
-  Building trainer;
-  String unitId;
-  float timeRemaining;
-  float totalTime;
-  Faction faction;
-
-  TrainJob(Building trainer, String unitId, float trainTime, Faction faction) {
-    this.trainer = trainer;
-    this.unitId = unitId;
-    this.totalTime = max(0.05, trainTime);
-    this.timeRemaining = this.totalTime;
-    this.faction = faction;
-  }
-
-  float progress01() {
-    if (totalTime <= 1e-6) {
-      return 1;
-    }
-    return constrain(1.0 - timeRemaining / totalTime, 0, 1);
-  }
-}
-
-class EnemyAiController {
-  static final int BOOTSTRAP = 0;
-  static final int ECO = 1;
-  static final int TECH = 2;
-  static final int MUSTER = 3;
-  static final int ATTACK = 4;
-
-  int phase = BOOTSTRAP;
-  float decisionTimer = 0;
-  float attackTimer = 0;
-  float lastEnemyArmyValue = 0;
-  int waveSerial = 0;
-  String lastAction = "init";
-  ArrayList<KnownEnemyBuilding> knownEnemyBuildings = new ArrayList<KnownEnemyBuilding>();
-  PVector lastSeenEnemyUnitPos;
-  float exploreRetargetTimer = 0;
-  PVector exploreTarget;
-  ArrayList<PVector> exploreWaypoints = new ArrayList<PVector>();
-  int exploreWaypointIndex = 0;
-  static final int ATTACK_SQUAD_MIN = 8;
-
-  void update(float dt, GameState gs) {
-    rememberSeenEnemies(gs, dt);
-    decisionTimer -= dt;
-    attackTimer += dt;
-    exploreRetargetTimer -= dt;
-    if (decisionTimer > 0) {
-      return;
-    }
-    decisionTimer = gs.enemyAiDecisionInterval;
-    tick(gs);
-  }
-
-  void tick(GameState gs) {
-    int enemyMines = gs.countFactionBuildingsByType(Faction.ENEMY, "mine", false);
-    int enemyWarehouses = gs.countFactionBuildingsByType(Faction.ENEMY, "warehouse", false);
-    int enemyBarracks = gs.countFactionBuildingsByType(Faction.ENEMY, "barracks", false);
-    int enemyMiners = gs.countFactionUnitsByType(Faction.ENEMY, "miner");
-    int enemyCombat = gs.countFactionCombatUnits(Faction.ENEMY);
-    int enemyTowers = gs.countFactionBuildingsByType(Faction.ENEMY, "tower", false);
-
-    float enemyArmyValue = gs.armyValueForFaction(Faction.ENEMY);
-    float playerArmyValue = max(1, gs.armyValueForFaction(Faction.PLAYER));
-    lastEnemyArmyValue = enemyArmyValue;
-
-    if (enemyMines < 1 || enemyMiners < gs.enemyAiMinersMin) {
-      phase = ECO;
-    } else if (enemyWarehouses < 1 || enemyBarracks < 1) {
-      phase = TECH;
-    } else if (enemyCombat < gs.enemyAiAttackMinArmy) {
-      phase = MUSTER;
-    } else {
-      phase = ATTACK;
-    }
-
-    runEconomy(gs, enemyMines, enemyMiners);
-    runTech(gs, enemyWarehouses, enemyBarracks);
-    runDefense(gs, enemyTowers);
-    runProduction(gs, enemyMiners, enemyCombat);
-
-    PVector strategicTarget = chooseStrategicTarget(gs);
-    boolean readyByTime = attackTimer >= gs.enemyAiAttackInterval;
-    boolean readyByAdv = enemyArmyValue >= playerArmyValue * gs.enemyAiAttackAdvantage;
-    boolean readyByCount = enemyCombat >= gs.enemyAiAttackMinArmy + 2;
-    boolean readyToCommit = readyByTime || readyByAdv || readyByCount || phase == ATTACK;
-    if (strategicTarget != null) {
-      if (enemyCombat >= ATTACK_SQUAD_MIN && readyToCommit) {
-        launchAttackWave(gs, strategicTarget);
-        attackTimer = 0;
-      } else {
-        rallyArmy(gs);
-        lastAction = "hold-muster-" + enemyCombat + "/" + ATTACK_SQUAD_MIN;
-      }
-      return;
-    }
-    runExploration(gs);
-  }
-
-  void rememberSeenEnemies(GameState gs, float dt) {
-    for (int i = knownEnemyBuildings.size() - 1; i >= 0; i--) {
-      KnownEnemyBuilding kb = knownEnemyBuildings.get(i);
-      kb.ttl -= dt;
-      if (kb.ttl <= 0) {
-        knownEnemyBuildings.remove(i);
-      }
-    }
-    for (Building b : gs.buildings) {
-      if (b.faction != Faction.PLAYER || b.hp <= 0) {
-        continue;
-      }
-      PVector bc = new PVector(b.pos.x + b.tileW * gs.map.tileSize * 0.5, b.pos.y + b.tileH * gs.map.tileSize * 0.5);
-      if (!enemyCanSee(gs, bc)) {
-        continue;
-      }
-      upsertKnownBuilding(b.buildingType, bc);
-    }
-    for (Unit u : gs.units) {
-      if (u.faction != Faction.PLAYER || u.hp <= 0) {
-        continue;
-      }
-      if (enemyCanSee(gs, u.pos)) {
-        lastSeenEnemyUnitPos = u.pos.copy();
-      }
-    }
-  }
-
-  boolean enemyCanSee(GameState gs, PVector p) {
-    for (Unit eu : gs.units) {
-      if (eu.faction != Faction.ENEMY || eu.hp <= 0) {
-        continue;
-      }
-      float vis = max(eu.sightRange, 120);
-      if (PVector.dist(eu.pos, p) <= vis && gs.pathfinder.hasLineOfSight(eu.pos, p, gs.buildings)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  void upsertKnownBuilding(String type, PVector pos) {
-    for (KnownEnemyBuilding kb : knownEnemyBuildings) {
-      if (PVector.dist(kb.pos, pos) < 28) {
-        kb.type = type;
-        kb.pos = pos.copy();
-        kb.ttl = 35;
-        return;
-      }
-    }
-    knownEnemyBuildings.add(new KnownEnemyBuilding(type, pos.copy(), 35));
-  }
-
-  int buildingPriority(String type) {
-    if ("base".equals(type)) {
-      return 0;
-    }
-    if ("barracks".equals(type)) {
-      return 1;
-    }
-    if ("tower".equals(type)) {
-      return 2;
-    }
-    if ("mine".equals(type)) {
-      return 3;
-    }
-    return 4;
-  }
-
-  PVector chooseStrategicTarget(GameState gs) {
-    KnownEnemyBuilding best = null;
-    int bestP = 999;
-    float bestD = 1e9;
-    Building eb = gs.findMainBaseForFaction(Faction.ENEMY);
-    PVector from = eb == null ? new PVector(gs.map.worldWidthPx() * 0.75, gs.map.worldHeightPx() * 0.75) :
-      new PVector(eb.pos.x + eb.tileW * gs.map.tileSize * 0.5, eb.pos.y + eb.tileH * gs.map.tileSize * 0.5);
-    for (KnownEnemyBuilding kb : knownEnemyBuildings) {
-      int p = buildingPriority(kb.type);
-      float d = PVector.dist(from, kb.pos);
-      if (p < bestP || (p == bestP && d < bestD)) {
-        bestP = p;
-        bestD = d;
-        best = kb;
-      }
-    }
-    if (best != null) {
-      return best.pos.copy();
-    }
-    if (lastSeenEnemyUnitPos != null) {
-      return lastSeenEnemyUnitPos.copy();
-    }
-    return null;
-  }
-
-  void runEconomy(GameState gs, int enemyMines, int enemyMiners) {
-    Building base = gs.findMainBaseForFaction(Faction.ENEMY);
-    PVector anchor = base == null ? new PVector(gs.map.worldWidthPx() * 0.75, gs.map.worldHeightPx() * 0.75) : base.pos.copy();
-    if (enemyMines < 1) {
-      if (gs.tryQueueBuildingForFaction(Faction.ENEMY, "mine", anchor)) {
-        lastAction = "build:mine";
-        return;
-      }
-    }
-    if (enemyMines < 2 && gs.enemyResources.credits > 280 && enemyMiners >= gs.enemyAiMinersMin + 1) {
-      if (gs.tryQueueBuildingForFaction(Faction.ENEMY, "mine", anchor)) {
-        lastAction = "expand:mine";
-      }
-    }
-  }
-
-  void runTech(GameState gs, int enemyWarehouses, int enemyBarracks) {
-    Building base = gs.findMainBaseForFaction(Faction.ENEMY);
-    PVector anchor = base == null ? new PVector(gs.map.worldWidthPx() * 0.75, gs.map.worldHeightPx() * 0.75) : base.pos.copy();
-    if (enemyWarehouses < 1) {
-      if (gs.tryQueueBuildingForFaction(Faction.ENEMY, "warehouse", PVector.add(anchor, new PVector(-gs.map.tileSize * 2.0, -gs.map.tileSize * 4.0)))) {
-        lastAction = "build:warehouse";
-        return;
-      }
-    }
-    if (enemyBarracks < 1) {
-      if (gs.tryQueueBuildingForFaction(Faction.ENEMY, "barracks", PVector.add(anchor, new PVector(-gs.map.tileSize * 5.0, -gs.map.tileSize * 3.0)))) {
-        lastAction = "build:barracks";
-        return;
-      }
-    }
-    if (enemyBarracks < 2 && gs.enemyResources.credits > 420 && gs.countFactionCombatUnits(Faction.ENEMY) >= 8) {
-      if (gs.tryQueueBuildingForFaction(Faction.ENEMY, "barracks", PVector.add(anchor, new PVector(-gs.map.tileSize * 8.0, -gs.map.tileSize * 5.0)))) {
-        lastAction = "expand:barracks";
-      }
-    }
-  }
-
-  void runDefense(GameState gs, int enemyTowers) {
-    Building base = gs.findMainBaseForFaction(Faction.ENEMY);
-    if (base == null) {
-      return;
-    }
-    boolean underPressure = false;
-    PVector bc = new PVector(base.pos.x + base.tileW * gs.map.tileSize * 0.5, base.pos.y + base.tileH * gs.map.tileSize * 0.5);
-    for (Unit pu : gs.units) {
-      if (pu.faction == Faction.PLAYER && pu.hp > 0 && !pu.canHarvest) {
-        if (PVector.dist(pu.pos, bc) < gs.map.tileSize * 14) {
-          underPressure = true;
-          break;
-        }
-      }
-    }
-    if (!underPressure && enemyTowers >= 2) {
-      return;
-    }
-    if (gs.enemyResources.credits < 180) {
-      return;
-    }
-    if (gs.tryQueueBuildingForFaction(Faction.ENEMY, "tower", PVector.add(base.pos, new PVector(-gs.map.tileSize * 3.0, gs.map.tileSize * 2.0)))) {
-      lastAction = "build:tower";
-    }
-  }
-
-  void runProduction(GameState gs, int enemyMiners, int enemyCombat) {
-    int targetMiners = int(constrain(gs.enemyAiMinersMin + enemyCombat / 6, gs.enemyAiMinersMin, gs.enemyAiMinersMax));
-    if (enemyMiners < targetMiners) {
-      if (gs.tryTrainUnitForFaction(Faction.ENEMY, "miner")) {
-        lastAction = "train:miner";
-        return;
-      }
-    }
-
-    int rifleCount = gs.countFactionUnitsByType(Faction.ENEMY, "rifleman");
-    int rocketCount = gs.countFactionUnitsByType(Faction.ENEMY, "rocketeer");
-    int combatCount = max(1, rifleCount + rocketCount);
-    float rifleShare = rifleCount / float(combatCount);
-    float rocketShare = rocketCount / float(combatCount);
-    if (rocketShare < gs.enemyAiRocketRatio) {
-      if (gs.tryTrainUnitForFaction(Faction.ENEMY, "rocketeer")) {
-        lastAction = "train:rocketeer";
-        return;
-      }
-    }
-    if (rifleShare < gs.enemyAiRifleRatio) {
-      if (gs.tryTrainUnitForFaction(Faction.ENEMY, "rifleman")) {
-        lastAction = "train:rifleman";
-        return;
-      }
-    }
-    if (!gs.tryTrainUnitForFaction(Faction.ENEMY, "rifleman")) {
-      gs.tryTrainUnitForFaction(Faction.ENEMY, "rocketeer");
-    }
-  }
-
-  void runExploration(GameState gs) {
-    if (exploreWaypoints.size() == 0) {
-      buildExploreWaypoints(gs);
-    }
-    if (exploreWaypoints.size() == 0) {
-      return;
-    }
-    if (exploreTarget == null || exploreRetargetTimer <= 0) {
-      exploreWaypointIndex = (exploreWaypointIndex + 1) % exploreWaypoints.size();
-      exploreTarget = exploreWaypoints.get(exploreWaypointIndex).copy();
-      exploreRetargetTimer = random(5.5, 8.5);
-    }
-    int nearby = 0;
-    for (Unit u : gs.units) {
-      if (u.faction != Faction.ENEMY || u.hp <= 0 || u.canHarvest) {
-        continue;
-      }
-      if (PVector.dist(u.pos, exploreTarget) < gs.map.tileSize * 2.2) {
-        nearby++;
-      }
-    }
-    if (nearby >= 2) {
-      exploreRetargetTimer = 0;
-    }
-    for (Unit u : gs.units) {
-      if (u.faction != Faction.ENEMY || u.hp <= 0 || u.canHarvest) {
-        continue;
-      }
-      if (u.orderType != UnitOrderType.ATTACK || u.attackTarget == null) {
-        u.issueAttackMove(exploreTarget.copy(), gs, false);
-      }
-    }
-    lastAction = "explore";
-  }
-
-  void buildExploreWaypoints(GameState gs) {
-    exploreWaypoints.clear();
-    float ts = gs.map.tileSize;
-    int cols = max(4, gs.map.widthTiles / 14);
-    int rows = max(4, gs.map.heightTiles / 14);
-    for (int y = 0; y < rows; y++) {
-      for (int x = 0; x < cols; x++) {
-        float tx = cols <= 1 ? 0.5 : x / float(cols - 1);
-        float ty = rows <= 1 ? 0.5 : y / float(rows - 1);
-        float gx = lerp(ts * 2.5, gs.map.worldWidthPx() - ts * 2.5, tx);
-        float gy = lerp(ts * 2.5, gs.map.worldHeightPx() - ts * 2.5, ty);
-        PVector desired = new PVector(gx, gy);
-        PVector openPos = gs.findNearestOpenSlot(desired, new ArrayList<String>());
-        exploreWaypoints.add(openPos);
-      }
-    }
-    // Simple deterministic shuffle-like zigzag for better coverage.
-    for (int i = 0; i < exploreWaypoints.size(); i += 2) {
-      int j = exploreWaypoints.size() - 1 - i;
-      if (j > i) {
-        PVector t = exploreWaypoints.get(i);
-        exploreWaypoints.set(i, exploreWaypoints.get(j));
-        exploreWaypoints.set(j, t);
-      }
-    }
-    exploreWaypointIndex = int(random(exploreWaypoints.size()));
-  }
-
-  void rallyArmy(GameState gs) {
-    PVector rally = gs.enemyRallyPoint();
-    for (Unit u : gs.units) {
-      if (u.faction != Faction.ENEMY || u.hp <= 0 || u.canHarvest) {
-        continue;
-      }
-      if (u.orderType == UnitOrderType.ATTACK || u.orderType == UnitOrderType.ATTACK_MOVE) {
-        continue;
-      }
-      if (u.moveTarget != null && PVector.dist(u.moveTarget, rally) < 24 && u.pathQueue.size() > 0) {
-        continue;
-      }
-      u.issueMove(rally.copy(), gs, false);
-    }
-    lastAction = "muster";
-  }
-
-  void launchAttackWave(GameState gs, PVector target) {
-    int readyUnits = gs.countFactionCombatUnits(Faction.ENEMY);
-    if (readyUnits < ATTACK_SQUAD_MIN) {
-      lastAction = "hold-muster-" + readyUnits + "/" + ATTACK_SQUAD_MIN;
-      return;
-    }
-    waveSerial++;
-    for (Unit u : gs.units) {
-      if (u.faction != Faction.ENEMY || u.hp <= 0 || u.canHarvest) {
-        continue;
-      }
-      u.issueAttackMove(target.copy(), gs, false);
-    }
-    lastAction = "attack-wave-" + waveSerial;
-  }
-
-  String phaseLabel() {
-    if (phase == ECO) {
-      return "ECO";
-    }
-    if (phase == TECH) {
-      return "TECH";
-    }
-    if (phase == MUSTER) {
-      return "MUSTER";
-    }
-    if (phase == ATTACK) {
-      return "ATTACK";
-    }
-    return "BOOTSTRAP";
-  }
-}
-
-class KnownEnemyBuilding {
-  String type;
-  PVector pos;
-  float ttl;
-
-  KnownEnemyBuilding(String type, PVector pos, float ttl) {
-    this.type = type;
-    this.pos = pos;
-    this.ttl = ttl;
-  }
-}
 
 class GoldMine {
   int tx;
@@ -2707,244 +1754,5 @@ class GoldMine {
   }
 }
 
-class MuzzleFx {
-  PVector startPos;
-  PVector endPos;
-  float ttl = 0.07;
 
-  MuzzleFx(PVector startPos, PVector endPos) {
-    this.startPos = startPos;
-    this.endPos = endPos;
-  }
 
-  void render(Camera camera) {
-    float k = constrain(ttl / 0.07, 0, 1);
-    PVector a = camera.worldToScreen(startPos.x, startPos.y);
-    PVector b = camera.worldToScreen(endPos.x, endPos.y);
-    PVector d = PVector.sub(b, a);
-    if (d.magSq() < 1e-6) {
-      return;
-    }
-    d.normalize();
-    PVector m = PVector.add(a, PVector.mult(d, 12 * camera.zoom));
-    stroke(255, 225, 130, 230 * k);
-    strokeWeight(max(1, 2 * camera.zoom));
-    line(a.x, a.y, m.x, m.y);
-    noStroke();
-    fill(255, 250, 160, 220 * k);
-    ellipse(a.x, a.y, 5 * camera.zoom, 5 * camera.zoom);
-  }
-}
-
-class DeliveryFx {
-  PVector pos;
-  int amount;
-  float ttl = 0.9;
-
-  DeliveryFx(PVector pos, int amount) {
-    this.pos = pos;
-    this.amount = amount;
-  }
-
-  void render(Camera camera) {
-    float k = constrain(ttl / 0.9, 0, 1);
-    float up = (1 - k) * 22;
-    PVector s = camera.worldToScreen(pos.x, pos.y - up);
-    noFill();
-    stroke(255, 225, 120, 200 * k);
-    strokeWeight(max(1, 1.6 * camera.zoom));
-    ellipse(s.x, s.y, (10 + (1 - k) * 18) * camera.zoom, (10 + (1 - k) * 18) * camera.zoom);
-    fill(255, 235, 140, 230 * k);
-    noStroke();
-    textAlign(CENTER, TOP);
-    textSize(11);
-    text("+ " + amount, s.x, s.y - 14 * camera.zoom);
-    textAlign(LEFT, TOP);
-  }
-}
-
-class RocketProjectile {
-  PVector pos;
-  Unit target;
-  Building buildingTarget;
-  PVector fixedTargetPos;
-  float damage;
-  float speed;
-  PVector vel = new PVector();
-  ArrayList<RocketSmoke> smokeTrail = new ArrayList<RocketSmoke>();
-  int maxTrail = 44;
-  float ttl = 3.0;
-  boolean impactDone = false;
-
-  RocketProjectile(PVector pos, Unit target, float damage, float speed) {
-    this.pos = pos.copy();
-    this.target = target;
-    this.damage = damage;
-    this.speed = speed;
-    fixedTargetPos = target != null ? target.pos.copy() : pos.copy();
-    PVector aim = fixedTargetPos.copy();
-    PVector initial = PVector.sub(aim, this.pos);
-    if (initial.magSq() < 1e-6) {
-      initial.set(1, 0);
-    } else {
-      initial.normalize();
-    }
-    vel = initial.mult(max(60, speed * 0.62));
-  }
-
-  RocketProjectile(PVector pos, Building target, PVector targetPos, float damage, float speed) {
-    this.pos = pos.copy();
-    this.buildingTarget = target;
-    this.fixedTargetPos = targetPos == null ? pos.copy() : targetPos.copy();
-    this.damage = damage;
-    this.speed = speed;
-    PVector initial = PVector.sub(this.fixedTargetPos, this.pos);
-    if (initial.magSq() < 1e-6) {
-      initial.set(1, 0);
-    } else {
-      initial.normalize();
-    }
-    vel = initial.mult(max(60, speed * 0.60));
-  }
-
-  PVector liveTargetPos() {
-    if (target != null && target.hp > 0) {
-      fixedTargetPos = target.pos.copy();
-      return fixedTargetPos.copy();
-    }
-    if (fixedTargetPos != null) {
-      return fixedTargetPos.copy();
-    }
-    return null;
-  }
-
-  void applyImpact() {
-    if (impactDone) {
-      return;
-    }
-    impactDone = true;
-    if (target != null && target.hp > 0) {
-      target.hp -= int(damage);
-      return;
-    }
-    if (buildingTarget != null && buildingTarget.hp > 0) {
-      buildingTarget.hp -= int(damage);
-    }
-  }
-
-  boolean update(float dt) {
-    for (int i = smokeTrail.size() - 1; i >= 0; i--) {
-      RocketSmoke rs = smokeTrail.get(i);
-      rs.age += dt;
-      if (rs.age >= rs.ttl) {
-        smokeTrail.remove(i);
-      }
-    }
-    if (impactDone) {
-      return smokeTrail.size() == 0;
-    }
-
-    ttl -= dt;
-    if (ttl <= 0) {
-      impactDone = true;
-      return smokeTrail.size() == 0;
-    }
-    PVector aim = liveTargetPos();
-    if (aim == null) {
-      impactDone = true;
-      return smokeTrail.size() == 0;
-    }
-    PVector delta = PVector.sub(aim, pos);
-    float dist = delta.mag();
-    if (dist < 10) {
-      applyImpact();
-      return smokeTrail.size() == 0;
-    }
-    if (delta.magSq() < 1e-6) {
-      delta.set(1, 0);
-    } else {
-      delta.normalize();
-    }
-    PVector desiredVel = PVector.mult(delta, speed);
-    float steer = constrain(0.95 * dt + 0.10, 0.10, 0.42);
-    vel.lerp(desiredVel, steer);
-    PVector step = PVector.mult(vel, dt);
-    if (step.mag() >= dist) {
-      pos.set(aim);
-      applyImpact();
-      return smokeTrail.size() == 0;
-    }
-    pos.add(step);
-    smokeTrail.add(new RocketSmoke(pos.copy(), random(0.22, 0.44), random(2.0, 5.2)));
-    while (smokeTrail.size() > maxTrail) {
-      smokeTrail.remove(0);
-    }
-    return false;
-  }
-
-  void render(Camera camera) {
-    if (camera == null) {
-      return;
-    }
-    PVector s = camera.worldToScreen(pos.x, pos.y);
-    noStroke();
-    for (int i = 0; i < smokeTrail.size(); i++) {
-      RocketSmoke rs = smokeTrail.get(i);
-      float life = constrain(1.0 - rs.age / max(0.001, rs.ttl), 0, 1);
-      PVector wp = rs.pos;
-      PVector sp = camera.worldToScreen(wp.x, wp.y);
-      float r = rs.size * life * camera.zoom;
-      fill(80, 85, 95, 165 * life);
-      ellipse(sp.x, sp.y, r * 2, r * 2);
-    }
-
-    if (impactDone) {
-      return;
-    }
-    noStroke();
-    // Head spark: one bright dot only (no straight tail line).
-    fill(255, 225, 170, 245);
-    ellipse(s.x, s.y, 6 * camera.zoom, 6 * camera.zoom);
-  }
-}
-
-class RocketSmoke {
-  PVector pos;
-  float ttl;
-  float age = 0;
-  float size;
-
-  RocketSmoke(PVector pos, float ttl, float size) {
-    this.pos = pos;
-    this.ttl = ttl;
-    this.size = size;
-  }
-}
-
-class OrderMarker {
-  PVector pos;
-  boolean attackStyle;
-  float ttl = 0.6;
-
-  OrderMarker(PVector pos, boolean attackStyle) {
-    this.pos = pos;
-    this.attackStyle = attackStyle;
-  }
-
-  void render(Camera camera) {
-    PVector s = camera.worldToScreen(pos.x, pos.y);
-    float k = constrain(ttl / 0.6, 0, 1);
-    float r = 8 + (1 - k) * 14;
-    noFill();
-    strokeWeight(2);
-    if (attackStyle) {
-      stroke(255, 90, 90, 220 * k);
-      ellipse(s.x, s.y, r * 2, r * 2);
-      line(s.x - r, s.y - r, s.x + r, s.y + r);
-      line(s.x - r, s.y + r, s.x + r, s.y - r);
-    } else {
-      stroke(120, 255, 120, 220 * k);
-      ellipse(s.x, s.y, r * 2, r * 2);
-    }
-  }
-}

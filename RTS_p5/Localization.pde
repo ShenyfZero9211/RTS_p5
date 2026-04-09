@@ -33,6 +33,8 @@ class Localization {
     put("menu.settings.title", "设置（仅本次会话，语言会持久化）", "Settings (session, language persists)");
     put("menu.fog.toggle", "切换战争迷雾", "Toggle fog");
     put("menu.fog.toggle.sub", "预览开关", "Preview toggle");
+    put("menu.speed", "游戏速度", "Game speed");
+    put("menu.speed.sub", "切换速度倍率", "Cycle speed multiplier");
     put("menu.lang.auto", "语言：系统默认", "Language: System default");
     put("menu.lang.zh", "语言：中文", "Language: Chinese");
     put("menu.lang.en", "语言：英文", "Language: English");

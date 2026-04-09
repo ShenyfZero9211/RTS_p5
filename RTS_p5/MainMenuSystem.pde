@@ -42,7 +42,8 @@ class MainMenuSystem {
     return true;
   }
 
-  void render(GameState gs) {
+  void render(GameEngine engine) {
+    GameState gs = engine == null ? null : engine.state();
     menuHits.clear();
     float pad = 22;
     float outerC = 12;
@@ -92,14 +93,17 @@ class MainMenuSystem {
       fill(170);
       String fogL = tr("menu.fog.toggle") + ": " + ((gs != null && gs.fogEnabled) ? "ON" : "OFF");
       text(fogL, cx, startY - 40);
+      String speedL = tr("menu.speed") + ": " + (engine != null ? engine.currentGameSpeedLabel() : "1.00x");
+      text(speedL, cx, startY - 20);
       String cred = tr("ui.faction") + " PLAYER $" + (gs != null ? gs.playerStartCredits : 0);
-      text(cred, cx, startY - 20);
+      text(cred, cx, startY);
 
       addMenuButton(cx - btnW * 0.5, startY + 16, btnW, btnH, tr("menu.fog.toggle"), tr("menu.fog.toggle.sub"), "menu:fog", 3);
+      addMenuButton(cx - btnW * 0.5, startY + 16 + (btnH + gap), btnW, btnH, tr("menu.speed"), tr("menu.speed.sub"), "menu:speed", 3);
 
       int langIdx = currentLangIndex();
       String[] langOptions = {tr("menu.lang.auto"), tr("menu.lang.zh"), tr("menu.lang.en")};
-      float dropdownY = startY + 16 + btnH + gap;
+      float dropdownY = startY + 16 + (btnH + gap) * 2;
       langDropdown.x = cx - btnW * 0.5;
       langDropdown.y = dropdownY;
       langDropdown.w = btnW;
@@ -146,7 +150,7 @@ class MainMenuSystem {
     widgets.drawHitButton(hb);
   }
 
-  void onMousePressed(GameState gs, int mx, int my, int button) {
+  void onMousePressed(GameEngine engine, int mx, int my, int button) {
     if (button != LEFT) {
       return;
     }
@@ -180,7 +184,8 @@ class MainMenuSystem {
     }
   }
 
-  void onMouseReleased(GameState gs, int mx, int my, int button) {
+  void onMouseReleased(GameEngine engine, int mx, int my, int button) {
+    GameState gs = engine == null ? null : engine.state();
     if (button != LEFT) {
       return;
     }
@@ -226,6 +231,10 @@ class MainMenuSystem {
     }
     if ("menu:fog".equals(action) && gs != null) {
       gs.fogEnabled = !gs.fogEnabled;
+      return;
+    }
+    if ("menu:speed".equals(action) && engine != null) {
+      engine.cycleGameSpeed();
       return;
     }
   }
