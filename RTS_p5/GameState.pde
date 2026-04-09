@@ -319,6 +319,7 @@ class GameState {
           def.attackRange = o.getFloat("attackRange", 95);
           def.attackDamage = o.getFloat("attackDamage", 8);
           def.attackCooldown = o.getFloat("attackCooldown", 0.6);
+          def.canAttack = o.getBoolean("canAttack", true);
           def.cost = o.getInt("cost", 60);
           def.trainTime = o.getFloat("trainTime", 2.0);
           def.sightRange = o.getFloat("sightRange", 220);
@@ -428,9 +429,6 @@ class GameState {
       return;
     }
     input.update(dt);
-    if (fog != null) {
-      fog.update(dt, this);
-    }
     buildSystem.update(dt, buildings);
     for (int i = orderMarkers.size() - 1; i >= 0; i--) {
       OrderMarker m = orderMarkers.get(i);
@@ -461,11 +459,19 @@ class GameState {
     for (int i = 0; i < units.size(); i++) {
       resolveUnitAgainstSolids(units.get(i));
     }
+    if (fog != null) {
+      fog.update(dt, this);
+    }
     updateRockets(dt);
     updateMuzzleFx(dt);
     updateDeliveryFx(dt);
     if (enemyAi != null) {
       enemyAi.update(dt, this);
+    }
+    if (buildSystem.active && !selectedStructureOffersBuildMenu()) {
+      buildSystem.active = false;
+      buildSystem.lastFailReason = "";
+      ui.clearBuildButtonState();
     }
     checkWinCondition();
   }
@@ -488,9 +494,6 @@ class GameState {
         u.render(camera);
       }
     }
-    for (OrderMarker m : orderMarkers) {
-      m.render(camera);
-    }
     renderRockets();
     renderMuzzleFx();
     renderDeliveryFx();
@@ -508,6 +511,13 @@ class GameState {
     noClip();
     popMatrix();
 
+    // Render order markers on top of fog/UI-world boundary so they are always visible.
+    pushStyle();
+    for (OrderMarker m : orderMarkers) {
+      m.render(camera);
+    }
+    popStyle();
+
     ui.render(this);
     if (gameEnded) {
       renderGameEndOverlay();
@@ -523,6 +533,35 @@ class GameState {
     }
     selectedBuilding = null;
     selectedUnits.clear();
+  }
+
+  /** Command Post / main base: sidebar shows structure build palette (StarCraft / Generals style). */
+  boolean selectedStructureOffersBuildMenu() {
+    if (selectedBuilding == null || selectedBuilding.faction != activeFaction || !selectedBuilding.completed) {
+      return false;
+    }
+    BuildingDef d = getBuildingDef(selectedBuilding.buildingType);
+    return d != null && d.isMainBase;
+  }
+
+  /** Barracks-style producer: sidebar shows only this building's trainable units. */
+  boolean selectedStructureOffersTrainMenu() {
+    if (selectedBuilding == null || selectedBuilding.faction != activeFaction || !selectedBuilding.completed) {
+      return false;
+    }
+    BuildingDef d = getBuildingDef(selectedBuilding.buildingType);
+    return d != null && d.canTrainUnits && d.trainableUnits != null && d.trainableUnits.length > 0;
+  }
+
+  void tryTrainHotkey(int slot) {
+    if (!selectedStructureOffersTrainMenu()) {
+      return;
+    }
+    BuildingDef bd = getBuildingDef(selectedBuilding.buildingType);
+    if (bd == null || slot < 0 || slot >= bd.trainableUnits.length) {
+      return;
+    }
+    trainUnitAtSelectedBuilding(bd.trainableUnits[slot]);
   }
 
   void onMousePressed(int mx, int my, int button) {
@@ -1218,7 +1257,24 @@ class GameState {
     if (selectedUnits.size() > 0) {
       return false;
     }
-    if (buildings.size() == 0) {
+    if (selectedBuilding == null || selectedBuilding.faction != activeFaction || !selectedBuilding.completed) {
+      orderLabel = "SelectProducer";
+      return false;
+    }
+    BuildingDef bdef = getBuildingDef(selectedBuilding.buildingType);
+    if (bdef == null || !bdef.canTrainUnits || bdef.trainableUnits == null) {
+      orderLabel = "NoTrainHere";
+      return false;
+    }
+    boolean allowed = false;
+    for (int i = 0; i < bdef.trainableUnits.length; i++) {
+      if (bdef.trainableUnits[i].equals(unitId)) {
+        allowed = true;
+        break;
+      }
+    }
+    if (!allowed) {
+      orderLabel = "UnitNotInRoster";
       return false;
     }
     UnitDef def = getUnitDef(unitId);
@@ -1229,24 +1285,10 @@ class GameState {
       orderLabel = "NeedCredits";
       return false;
     }
-    Building barracks = null;
-    for (Building b : buildings) {
-      if (b.faction != activeFaction || !b.completed) {
-        continue;
-      }
-      if (b.buildingType.equals("barracks")) {
-        barracks = b;
-        break;
-      }
-    }
-    if (barracks == null) {
-      orderLabel = "NeedBarracks";
-      return false;
-    }
     if (!resources.spend(def.cost)) {
       return false;
     }
-    PVector spawn = findSpawnAroundBuilding(barracks);
+    PVector spawn = findSpawnAroundBuilding(selectedBuilding);
     units.add(new Unit(spawn.x, spawn.y, activeFaction, def));
     orderLabel = "Train:" + unitId;
     return true;

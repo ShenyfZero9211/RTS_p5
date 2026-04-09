@@ -6,7 +6,6 @@ class FogSystem {
   boolean rebuilding = false;
   int rebuildCursor = 0;
   ArrayList<FogVisionSource> activeSources = new ArrayList<FogVisionSource>();
-  ArrayList<FogVisionSource> lastSources = new ArrayList<FogVisionSource>();
   int dirtyMinX = 0;
   int dirtyMinY = 0;
   int dirtyMaxX = -1;
@@ -42,26 +41,20 @@ class FogSystem {
     activeSources.clear();
     collectVisionSources(gs, activeSources);
 
-    dirtyMinX = map.widthTiles;
-    dirtyMinY = map.heightTiles;
-    dirtyMaxX = -1;
-    dirtyMaxY = -1;
-    for (FogVisionSource s : lastSources) {
-      expandDirty(s.minTx, s.minTy, s.maxTx, s.maxTy, map);
-    }
-    for (FogVisionSource s : activeSources) {
-      expandDirty(s.minTx, s.minTy, s.maxTx, s.maxTy, map);
-    }
-
-    if (dirtyMaxX < dirtyMinX || dirtyMaxY < dirtyMinY) {
+    // Full-map visible rebuild every tick: incremental dirty rects left stale true cells
+    // (esp. when vision sources disappear) and caused shroud flicker.
+    dirtyMinX = 0;
+    dirtyMinY = 0;
+    dirtyMaxX = map.widthTiles - 1;
+    dirtyMaxY = map.heightTiles - 1;
+    if (map.widthTiles <= 0 || map.heightTiles <= 0 || dirtyMaxX < dirtyMinX || dirtyMaxY < dirtyMinY) {
       updateTimer = adaptiveIntervalCached;
       rebuilding = false;
       return;
     }
 
-    // Keep non-dirty regions untouched; only rebuild changed regions.
-    for (int ty = dirtyMinY; ty <= dirtyMaxY; ty++) {
-      for (int tx = dirtyMinX; tx <= dirtyMaxX; tx++) {
+    for (int ty = 0; ty < map.heightTiles; ty++) {
+      for (int tx = 0; tx < map.widthTiles; tx++) {
         visibleWork[ty][tx] = false;
       }
     }
@@ -71,7 +64,8 @@ class FogSystem {
   }
 
   void processRebuildBatch(GameState gs) {
-    int batch = max(1, gs.fogBatchSourcesPerFrame);
+    // Always finish all sources in one call: partial batches left visible stale vs explored and caused edge flicker.
+    int batch = max(max(1, gs.fogBatchSourcesPerFrame), activeSources.size());
     int processed = 0;
     TileMap map = gs.map;
     while (processed < batch && rebuildCursor < activeSources.size()) {
@@ -84,8 +78,8 @@ class FogSystem {
       return;
     }
 
-    for (int ty = dirtyMinY; ty <= dirtyMaxY; ty++) {
-      for (int tx = dirtyMinX; tx <= dirtyMaxX; tx++) {
+    for (int ty = 0; ty < map.heightTiles; ty++) {
+      for (int tx = 0; tx < map.widthTiles; tx++) {
         if (visibleWork[ty][tx]) {
           explored[ty][tx] = true;
         }
@@ -96,10 +90,6 @@ class FogSystem {
     visible = visibleWork;
     visibleWork = tmp;
 
-    lastSources.clear();
-    for (FogVisionSource s : activeSources) {
-      lastSources.add(s.copy());
-    }
     rebuilding = false;
     updateTimer = adaptiveIntervalCached;
   }
@@ -123,7 +113,7 @@ class FogSystem {
       }
     }
     for (Building b : gs.buildings) {
-      if (b.faction == Faction.PLAYER) {
+      if (b.faction == Faction.PLAYER && b.hp > 0 && b.completed) {
         c++;
       }
     }
@@ -136,27 +126,23 @@ class FogSystem {
       if (u.hp <= 0 || u.faction != Faction.PLAYER) {
         continue;
       }
-      out.add(new FogVisionSource(u.pos.copy(), max(70, u.sightRange), map));
+      float fts = map.tileSize;
+      int utx = constrain(round(u.pos.x / fts - 0.5), 0, map.widthTiles - 1);
+      int uty = constrain(round(u.pos.y / fts - 0.5), 0, map.heightTiles - 1);
+      PVector snapped = new PVector((utx + 0.5) * fts, (uty + 0.5) * fts);
+      out.add(new FogVisionSource(snapped, max(70, u.sightRange), map));
     }
     for (Building b : gs.buildings) {
-      if (b.faction != Faction.PLAYER) {
+      if (b.faction != Faction.PLAYER || b.hp <= 0 || !b.completed) {
         continue;
       }
       float r = max(b.tileW, b.tileH) * map.tileSize * 0.95 + 80;
-      PVector c = new PVector(b.pos.x + b.tileW * map.tileSize * 0.5, b.pos.y + b.tileH * map.tileSize * 0.5);
+      int btx = constrain(map.toTileX(b.pos.x), 0, max(0, map.widthTiles - b.tileW));
+      int bty = constrain(map.toTileY(b.pos.y), 0, max(0, map.heightTiles - b.tileH));
+      float fts = map.tileSize;
+      PVector c = new PVector((btx + b.tileW * 0.5) * fts, (bty + b.tileH * 0.5) * fts);
       out.add(new FogVisionSource(c, r, map));
     }
-  }
-
-  void expandDirty(int minTx, int minTy, int maxTx, int maxTy, TileMap map) {
-    minTx = constrain(minTx, 0, map.widthTiles - 1);
-    minTy = constrain(minTy, 0, map.heightTiles - 1);
-    maxTx = constrain(maxTx, 0, map.widthTiles - 1);
-    maxTy = constrain(maxTy, 0, map.heightTiles - 1);
-    dirtyMinX = min(dirtyMinX, minTx);
-    dirtyMinY = min(dirtyMinY, minTy);
-    dirtyMaxX = max(dirtyMaxX, maxTx);
-    dirtyMaxY = max(dirtyMaxY, maxTy);
   }
 
   void markCircleSource(FogVisionSource s, TileMap map) {
@@ -278,16 +264,4 @@ class FogVisionSource {
     this.maxTy = min(map.heightTiles - 1, map.toTileY(center.y + radiusPx));
   }
 
-  FogVisionSource(PVector center, float radiusPx, int minTx, int minTy, int maxTx, int maxTy) {
-    this.center = center;
-    this.radiusPx = radiusPx;
-    this.minTx = minTx;
-    this.minTy = minTy;
-    this.maxTx = maxTx;
-    this.maxTy = maxTy;
-  }
-
-  FogVisionSource copy() {
-    return new FogVisionSource(center.copy(), radiusPx, minTx, minTy, maxTx, maxTy);
-  }
 }

@@ -7,6 +7,7 @@ class UnitDef {
   float attackRange = 95;
   float attackDamage = 8;
   float attackCooldown = 0.6;
+  boolean canAttack = true;
   int cost = 60;
   float trainTime = 2.0;
   float sightRange = 220;

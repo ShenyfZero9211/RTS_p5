@@ -14,12 +14,6 @@ class UISystem {
   int pressedBuildIndex = -1;
   int hoveredTrainIndex = -1;
   int pressedTrainIndex = -1;
-  int panelTabMode = 0; // 0: buildings, 1: units
-  int tabBuildingsX;
-  int tabUnitsX;
-  int tabY;
-  int tabW;
-  int tabH;
   float pressedFlashTimer = 0;
 
   UISystem(int worldViewW, int viewportH) {
@@ -165,7 +159,7 @@ class UISystem {
     infoY += lineH;
     text("LMB Select/Place  RMB Move/Attack", contentX, infoY);
     infoY += lineH;
-    text("Q/W/E train Miner/Rifle/Rocket", contentX, infoY);
+    text("Select Command Post to build, or Barracks to train (Q/W/E)", contentX, infoY);
     infoY += lineH + 4;
 
     float p = state.buildSystem.currentProgress01();
@@ -182,42 +176,42 @@ class UISystem {
 
     y += tacticalH + 12;
 
-    // Bottom command tabs
-    int tabsH = 30;
-    int tabx = panelX + 10;
-    int tabw = panelW - 20;
-    tabY = y;
-    tabW = int((tabw - 6) * 0.5);
-    tabH = tabsH;
-    tabBuildingsX = tabx;
-    tabUnitsX = tabx + tabW + 6;
-    boolean showBuildings = panelTabMode == 0;
-    drawChamferFill(tabBuildingsX, tabY, tabW, tabH, innerChamfer, showBuildings ? color(70, 102, 74) : color(28, 28, 28));
-    drawChamferStroke(tabBuildingsX, tabY, tabW, tabH, innerChamfer, showBuildings ? color(150, 245, 150) : color(88, 88, 88), showBuildings ? 2 : 1);
-    drawChamferFill(tabUnitsX, tabY, tabW, tabH, innerChamfer, showBuildings ? color(28, 28, 28) : color(72, 82, 110));
-    drawChamferStroke(tabUnitsX, tabY, tabW, tabH, innerChamfer, showBuildings ? color(88, 88, 88) : color(140, 190, 255), showBuildings ? 1 : 2);
-    fill(230);
-    textSize(12);
-    textAlign(CENTER, CENTER);
-    text("BUILDINGS", tabBuildingsX + tabW * 0.5, tabY + tabH * 0.52);
-    text("UNITS", tabUnitsX + tabW * 0.5, tabY + tabH * 0.52);
+    // Context command panel (StarCraft / C&C Generals: content follows selected structure)
+    int cmdHeaderH = 26;
+    int cmdx = panelX + 10;
+    int cmdw = panelW - 20;
+    drawChamferFill(cmdx, y, cmdw, cmdHeaderH, innerChamfer, color(26, 28, 32));
+    drawChamferStroke(cmdx, y, cmdw, cmdHeaderH, innerChamfer, color(90, 98, 110), 1);
+    fill(210, 218, 228);
+    textSize(11);
+    textAlign(LEFT, CENTER);
+    if (state.selectedStructureOffersBuildMenu()) {
+      text("CONSTRUCT  —  " + state.selectedBuilding.buildingType.toUpperCase(), cmdx + 10, y + cmdHeaderH * 0.5);
+    } else if (state.selectedStructureOffersTrainMenu()) {
+      BuildingDef pd = state.getBuildingDef(state.selectedBuilding.buildingType);
+      text("TRAIN  —  " + (pd != null ? pd.id.toUpperCase() : "?"), cmdx + 10, y + cmdHeaderH * 0.5);
+    } else {
+      text("COMMANDS  —  select a structure", cmdx + 10, y + cmdHeaderH * 0.5);
+    }
     textAlign(LEFT, TOP);
-    y += tabsH + 10;
+    y += cmdHeaderH + 8;
 
     buildButtonsY = y;
     buildGridX = panelX + 12;
     buildButtonCols = panelW >= 300 ? 2 : 1;
     buildCellW = int((panelW - 28 - buildButtonGap * (buildButtonCols - 1)) / float(buildButtonCols));
-    if (panelTabMode == 0) {
+    hoveredBuildIndex = -1;
+    hoveredTrainIndex = -1;
+    if (state.selectedStructureOffersBuildMenu()) {
       hoveredBuildIndex = buildButtonIndexAt(mouseX, mouseY, state);
-      hoveredTrainIndex = -1;
-      renderBuildButtons(state);
-    } else {
-      hoveredBuildIndex = -1;
+      renderContextBuildButtons(state);
+    } else if (state.selectedStructureOffersTrainMenu()) {
       hoveredTrainIndex = trainButtonIndexAt(mouseX, mouseY, state);
-      renderTrainButtons(state);
+      renderContextTrainButtons(state);
+    } else {
+      renderCommandPanelIdle(state, cmdx, buildButtonsY, cmdw);
     }
-    if (state.buildSystem.lastFailReason.length() > 0 && panelTabMode == 0) {
+    if (state.buildSystem.lastFailReason.length() > 0 && state.selectedStructureOffersBuildMenu()) {
       fill(255, 130, 130);
       textSize(11);
       text("Build error: " + state.buildSystem.lastFailReason, panelX + 14, buildButtonsY - 18);
@@ -316,10 +310,99 @@ class UISystem {
     return mx >= sidePanelX || minimap.contains(mx, my);
   }
 
-  void renderBuildButtons(GameState state) {
+  int contextualBuildPaletteCount(GameState state) {
+    if (!state.selectedStructureOffersBuildMenu()) {
+      return 0;
+    }
+    int n = 0;
+    for (int j = 0; j < state.buildSystem.defs.size(); j++) {
+      if (!state.buildSystem.defs.get(j).isMainBase) {
+        n++;
+      }
+    }
+    return n;
+  }
+
+  BuildingDef contextualBuildDefAt(GameState state, int paletteIndex) {
+    if (!state.selectedStructureOffersBuildMenu()) {
+      return null;
+    }
+    int k = 0;
+    for (int j = 0; j < state.buildSystem.defs.size(); j++) {
+      BuildingDef d = state.buildSystem.defs.get(j);
+      if (d.isMainBase) {
+        continue;
+      }
+      if (k == paletteIndex) {
+        return d;
+      }
+      k++;
+    }
+    return null;
+  }
+
+  int globalBuildIndexForPalette(GameState state, int paletteIndex) {
+    int k = 0;
+    for (int j = 0; j < state.buildSystem.defs.size(); j++) {
+      BuildingDef d = state.buildSystem.defs.get(j);
+      if (d.isMainBase) {
+        continue;
+      }
+      if (k == paletteIndex) {
+        return j;
+      }
+      k++;
+    }
+    return -1;
+  }
+
+  int contextualPaletteIndexForBuildingDef(GameState state, BuildingDef target) {
+    if (target == null || target.isMainBase) {
+      return -1;
+    }
+    int k = 0;
+    for (int j = 0; j < state.buildSystem.defs.size(); j++) {
+      BuildingDef d = state.buildSystem.defs.get(j);
+      if (d.isMainBase) {
+        continue;
+      }
+      if (d.id != null && d.id.equals(target.id)) {
+        return k;
+      }
+      k++;
+    }
+    return -1;
+  }
+
+  void renderCommandPanelIdle(GameState state, int cmdx, int y, int cmdw) {
+    int idleH = 100;
+    drawChamferFill(cmdx, y, cmdw, idleH, 4, color(22, 22, 24));
+    drawChamferStroke(cmdx, y, cmdw, idleH, 4, color(60, 60, 64), 1);
+    fill(140, 150, 165);
+    textSize(11);
+    text("Select your Command Post (base)", cmdx + 12, y + 14);
+    text("to open the structure palette.", cmdx + 12, y + 30);
+    text("Select Barracks (or another producer)", cmdx + 12, y + 46);
+    text("to train its roster only.", cmdx + 12, y + 62);
+    if (state.selectedUnits.size() > 0) {
+      fill(175, 188, 205);
+      text("Unit selection uses the world view.", cmdx + 12, y + 82);
+    }
+  }
+
+  void renderContextBuildButtons(GameState state) {
     float cellChamfer = 4;
-    for (int i = 0; i < state.buildSystem.defs.size(); i++) {
-      BuildingDef def = state.buildSystem.defs.get(i);
+    int n = contextualBuildPaletteCount(state);
+    BuildingDef cur = state.buildSystem.selectedDef();
+    int armedPalette = -1;
+    if (state.buildSystem.active && cur != null && !cur.isMainBase) {
+      armedPalette = contextualPaletteIndexForBuildingDef(state, cur);
+    }
+    for (int i = 0; i < n; i++) {
+      BuildingDef def = contextualBuildDefAt(state, i);
+      if (def == null) {
+        continue;
+      }
       int col = i % buildButtonCols;
       int row = i / buildButtonCols;
       int x = buildGridX + col * (buildCellW + buildButtonGap);
@@ -330,7 +413,7 @@ class UISystem {
       int thumbY = y + 5;
       int textX = thumbX + thumbW + 8;
 
-      boolean armed = (state.buildSystem.active && armedBuildIndex == i);
+      boolean armed = (state.buildSystem.active && armedPalette == i);
       boolean hovered = hoveredBuildIndex == i;
       boolean pressed = pressedBuildIndex == i;
       boolean unlocked = state.buildSystem.canBuildDefForFaction(def, state.buildings, state.activeFaction);
@@ -382,53 +465,50 @@ class UISystem {
   }
 
   boolean handleClick(GameState state, int mx, int my) {
-    if (mx >= tabBuildingsX && mx <= tabBuildingsX + tabW && my >= tabY && my <= tabY + tabH) {
-      panelTabMode = 0;
-      state.orderLabel = "UI:BuildingsTab";
-      return true;
-    }
-    if (mx >= tabUnitsX && mx <= tabUnitsX + tabW && my >= tabY && my <= tabY + tabH) {
-      panelTabMode = 1;
-      state.orderLabel = "UI:UnitsTab";
-      return true;
-    }
     if (minimap.contains(mx, my)) {
       return false;
     }
-    if (panelTabMode == 1) {
+    if (state.selectedStructureOffersTrainMenu()) {
       int tidx = trainButtonIndexAt(mx, my, state);
       if (tidx >= 0) {
-        String[] ids = {
-          "miner", "rifleman", "rocketeer"
-        };
-        String id = ids[tidx];
-        pressedTrainIndex = tidx;
-        state.trainUnitAtSelectedBuilding(id);
-        return true;
+        BuildingDef bdef = state.getBuildingDef(state.selectedBuilding.buildingType);
+        if (bdef != null && tidx < bdef.trainableUnits.length) {
+          pressedTrainIndex = tidx;
+          state.trainUnitAtSelectedBuilding(bdef.trainableUnits[tidx]);
+          return true;
+        }
       }
       return mx >= sidePanelX;
     }
-    int idx = buildButtonIndexAt(mx, my, state);
-    if (idx >= 0) {
-      BuildingDef def = state.buildSystem.defs.get(idx);
-      if (!state.buildSystem.canBuildDefForFaction(def, state.buildings, state.activeFaction)) {
-        state.buildSystem.lastFailReason = "Need prerequisite";
+    if (state.selectedStructureOffersBuildMenu()) {
+      int idx = buildButtonIndexAt(mx, my, state);
+      if (idx >= 0) {
+        int g = globalBuildIndexForPalette(state, idx);
+        if (g < 0) {
+          return mx >= sidePanelX;
+        }
+        BuildingDef def = state.buildSystem.defs.get(g);
+        if (!state.buildSystem.canBuildDefForFaction(def, state.buildings, state.activeFaction)) {
+          state.buildSystem.lastFailReason = "Need prerequisite";
+          return true;
+        }
+        state.buildSystem.selectIndex(g);
+        state.buildSystem.active = true;
+        state.buildSystem.lastFailReason = "";
+        state.orderLabel = "BuildPlace(Armed)";
+        armedBuildIndex = idx;
+        pressedBuildIndex = idx;
+        pressedFlashTimer = 0;
         return true;
       }
-      state.buildSystem.selectIndex(idx);
-      state.buildSystem.active = true;
-      state.buildSystem.lastFailReason = "";
-      state.orderLabel = "BuildPlace(Armed)";
-      armedBuildIndex = idx;
-      pressedBuildIndex = idx;
-      pressedFlashTimer = 0;
-      return true;
+      return mx >= sidePanelX;
     }
     return mx >= sidePanelX;
   }
 
   int buildButtonIndexAt(int mx, int my, GameState state) {
-    for (int i = 0; i < state.buildSystem.defs.size(); i++) {
+    int n = contextualBuildPaletteCount(state);
+    for (int i = 0; i < n; i++) {
       int col = i % buildButtonCols;
       int row = i / buildButtonCols;
       int x = buildGridX + col * (buildCellW + buildButtonGap);
@@ -456,7 +536,11 @@ class UISystem {
   }
 
   int trainButtonIndexAt(int mx, int my, GameState state) {
-    int rows = 3;
+    BuildingDef bdef = state.selectedBuilding == null ? null : state.getBuildingDef(state.selectedBuilding.buildingType);
+    if (bdef == null || bdef.trainableUnits == null) {
+      return -1;
+    }
+    int rows = bdef.trainableUnits.length;
     for (int i = 0; i < rows; i++) {
       int col = i % buildButtonCols;
       int row = i / buildButtonCols;
@@ -469,26 +553,28 @@ class UISystem {
     return -1;
   }
 
-  void renderTrainButtons(GameState state) {
-    String[] ids = {
-      "miner", "rifleman", "rocketeer"
-    };
-    String[] names = {
-      "MINER", "RIFLE", "ROCKET"
-    };
-    String[] hotkeys = {
-      "Q", "W", "E"
-    };
-    boolean hasBarracks = false;
-    for (Building b : state.buildings) {
-      if (b.faction == state.activeFaction && b.completed && b.buildingType.equals("barracks")) {
-        hasBarracks = true;
-        break;
-      }
+  String trainHotkeyLabel(int slot) {
+    if (slot == 0) {
+      return "Q";
+    }
+    if (slot == 1) {
+      return "W";
+    }
+    if (slot == 2) {
+      return "E";
+    }
+    return "";
+  }
+
+  void renderContextTrainButtons(GameState state) {
+    BuildingDef bdef = state.getBuildingDef(state.selectedBuilding.buildingType);
+    if (bdef == null || bdef.trainableUnits == null) {
+      return;
     }
     float cellChamfer = 4;
-    for (int i = 0; i < ids.length; i++) {
-      UnitDef def = state.getUnitDef(ids[i]);
+    for (int i = 0; i < bdef.trainableUnits.length; i++) {
+      String uid = bdef.trainableUnits[i];
+      UnitDef def = state.getUnitDef(uid);
       if (def == null) {
         continue;
       }
@@ -498,12 +584,10 @@ class UISystem {
       int y = buildButtonsY + row * (buildButtonH + buildButtonGap);
       boolean hovered = hoveredTrainIndex == i;
       boolean pressed = pressedTrainIndex == i;
-      boolean unlocked = hasBarracks && state.resources.canAfford(def.cost);
+      boolean unlocked = state.resources.canAfford(def.cost);
 
       int baseFill = color(48, 48, 48);
-      if (!hasBarracks) {
-        baseFill = color(38, 34, 34);
-      } else if (!state.resources.canAfford(def.cost)) {
+      if (!state.resources.canAfford(def.cost)) {
         baseFill = color(40, 40, 40);
       } else if (hovered) {
         baseFill = color(58, 68, 92);
@@ -518,16 +602,13 @@ class UISystem {
 
       fill(unlocked ? 238 : 140);
       textSize(11);
-      text(names[i], x + 8, y + 8);
+      text(unitTypeLabel(uid), x + 8, y + 8);
       fill(unlocked ? 200 : 120);
-      text("$" + def.cost + "   [" + hotkeys[i] + "]", x + 8, y + 24);
+      String hk = trainHotkeyLabel(i);
+      text("$" + def.cost + (hk.length() > 0 ? "   [" + hk + "]" : ""), x + 8, y + 24);
       fill(unlocked ? 175 : 110);
       text("HP " + def.hp + "  RNG " + int(def.attackRange), x + 8, y + 38);
-      if (!hasBarracks) {
-        fill(255, 120, 120);
-        textSize(10);
-        text("NEED BARRACKS", x + buildCellW - 82, y + 4);
-      } else if (!state.resources.canAfford(def.cost)) {
+      if (!state.resources.canAfford(def.cost)) {
         fill(255, 150, 130);
         textSize(10);
         text("LOW CREDITS", x + buildCellW - 64, y + 4);

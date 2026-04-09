@@ -182,15 +182,15 @@ class InputSystem {
       return;
     }
     if (key == 'q' || key == 'Q') {
-      state.trainUnitAtSelectedBuilding("miner");
+      state.tryTrainHotkey(0);
       return;
     }
     if (key == 'w' || key == 'W') {
-      state.trainUnitAtSelectedBuilding("rifleman");
+      state.tryTrainHotkey(1);
       return;
     }
     if (key == 'e' || key == 'E') {
-      state.trainUnitAtSelectedBuilding("rocketeer");
+      state.tryTrainHotkey(2);
       return;
     }
     if (key == 'a' || key == 'A') {

@@ -19,6 +19,7 @@ class Unit extends Entity {
   float attackRange = 95;
   float attackDamage = 8;
   float attackCooldown = 0.6;
+  boolean canAttack = true;
   float sightRange = 220;
   boolean usesProjectile = false;
   float projectileSpeed = 260;
@@ -56,6 +57,7 @@ class Unit extends Entity {
     attackRange = def.attackRange;
     attackDamage = def.attackDamage;
     attackCooldown = def.attackCooldown;
+    canAttack = def.canAttack;
     sightRange = def.sightRange;
     usesProjectile = def.usesProjectile;
     projectileSpeed = def.projectileSpeed;
@@ -103,6 +105,9 @@ class Unit extends Entity {
   }
 
   void issueAttack(Unit target) {
+    if (!canAttack) {
+      return;
+    }
     attackTarget = target;
     attackBuildingTarget = null;
     cancelHarvestOrder();
@@ -111,6 +116,9 @@ class Unit extends Entity {
   }
 
   void issueAttackBuilding(Building target) {
+    if (!canAttack) {
+      return;
+    }
     attackTarget = null;
     attackBuildingTarget = target;
     cancelHarvestOrder();
@@ -153,7 +161,8 @@ class Unit extends Entity {
     harvestTimer = max(0, harvestTimer - dt);
 
     if (canHarvest && gs != null && (shouldAutoHarvest(gs) || manualHarvestOrder)) {
-      if (autoHarvestDelay > 0) {
+      // Manual harvest orders should react immediately; delay only applies to autonomous behavior.
+      if (!manualHarvestOrder && autoHarvestDelay > 0) {
         autoHarvestDelay = max(0, autoHarvestDelay - dt);
       } else {
         updateHarvestBehavior(dt, gs);
@@ -166,6 +175,18 @@ class Unit extends Entity {
 
     if (faction == Faction.NEUTRAL || faction == Faction.ENEMY) {
       updateCombatAi(gs);
+    }
+
+    if (!canAttack) {
+      if (orderType == UnitOrderType.ATTACK || orderType == UnitOrderType.ATTACK_MOVE) {
+        orderType = UnitOrderType.NONE;
+        attackTarget = null;
+        attackBuildingTarget = null;
+      }
+      if (orderType == UnitOrderType.NONE) {
+        state = UnitState.IDLE;
+        return;
+      }
     }
 
     if (orderType == UnitOrderType.ATTACK &&
