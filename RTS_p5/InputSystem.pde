@@ -4,12 +4,18 @@ class InputSystem {
   boolean draggingMinimap = false;
   PVector dragStart = new PVector();
   PVector dragEnd = new PVector();
+  int lastSelectClickMs = -10000;
+  String lastSelectUnitType = "";
+  static final int DOUBLE_CLICK_MS = 280;
 
   InputSystem(GameState state) {
     this.state = state;
   }
 
   void update(float dt) {
+    if (state.map == null) {
+      return;
+    }
     if (state.hardCursorLock && state.cursorLock != null) {
       state.cursorLock.keepInsideWindow(surface, state.screenW, state.screenH, focused);
     }
@@ -24,19 +30,55 @@ class InputSystem {
 
   void onMousePressed(int mx, int my, int button) {
     if (state.gameEnded) {
+      state.handleGameEndOverlayClick(mx, my, button);
       return;
     }
     if (button == LEFT && mx >= state.worldViewW) {
-      if (state.ui.handleClick(state, mx, my)) {
+      if (state.ui.beginClick(state, mx, my)) {
         return;
       }
     }
-
     if (button == LEFT && state.ui.minimap.contains(mx, my)) {
       PVector world = state.ui.minimap.minimapToWorld(mx, my, state.map);
+      if (state.attackMoveArmed && state.selectedUnits.size() > 0) {
+        boolean queue = isShiftDown();
+        state.clearSelectedHarvestOrders();
+        state.commandSystem.attackMoveSelected(state, state.selectedUnits, world, queue);
+        state.orderLabel = tr("order.attackMove");
+        state.addOrderMarker(world.copy(), true);
+        state.attackMoveArmed = false;
+        return;
+      }
       state.camera.jumpCenterTo(world.x, world.y);
       draggingMinimap = true;
       return;
+    }
+    if (button == RIGHT && state.ui.minimap.contains(mx, my)) {
+      PVector miniWorld = state.ui.minimap.minimapToWorld(mx, my, state.map);
+      boolean queue = isShiftDown();
+      if (state.selectedUnits.size() == 0 && state.selectedBuilding != null && state.selectedStructureOffersTrainMenu()) {
+        state.selectedBuilding.rallyPoint = miniWorld.copy();
+        state.orderLabel = tr("order.rallySet");
+        state.addOrderMarker(miniWorld.copy(), false);
+      } else if (state.selectedUnits.size() > 0) {
+        state.clearSelectedHarvestOrders();
+        if (state.attackMoveArmed) {
+          state.commandSystem.attackMoveSelected(state, state.selectedUnits, miniWorld, queue);
+          state.orderLabel = tr("order.attackMove");
+          state.addOrderMarker(miniWorld.copy(), true);
+          state.attackMoveArmed = false;
+        } else {
+          state.commandSystem.moveSelected(state, state.selectedUnits, miniWorld, queue);
+          state.orderLabel = queue ? tr("order.queueMove") : tr("order.move");
+          state.addOrderMarker(miniWorld.copy(), false);
+        }
+      }
+      return;
+    }
+    if (button == RIGHT && mx >= state.worldViewW) {
+      if (state.ui.handleRightClickQueueCancel(state, mx, my)) {
+        return;
+      }
     }
 
     if (mx >= state.worldViewW) {
@@ -47,17 +89,21 @@ class InputSystem {
     if (button == LEFT) {
       if (state.attackMoveArmed) {
         state.commandSystem.attackMoveSelected(state, state.selectedUnits, world, false);
-        state.orderLabel = "AttackMove";
+        state.orderLabel = tr("order.attackMove");
         state.addOrderMarker(world, true);
         state.attackMoveArmed = false;
         return;
       }
       if (state.buildSystem.active) {
+        if (!state.canPlaceSelectedBuildInExploredArea()) {
+          state.buildSystem.lastFailReason = tr("ui.buildUnexplored");
+          return;
+        }
         boolean ok = state.buildSystem.queueBuildIfValid(state.map, state.buildings, state.activeFaction, state.resources);
         if (ok) {
           state.buildSystem.active = false;
           state.ui.clearBuildButtonState();
-          state.orderLabel = "BuildPlaced";
+          state.orderLabel = tr("order.buildPlaced");
         }
         return;
       }
@@ -69,14 +115,20 @@ class InputSystem {
         state.buildSystem.active = false;
         state.buildSystem.lastFailReason = "";
         state.ui.clearBuildButtonState();
-        state.orderLabel = "BuildPlace(Cancel)";
+        state.orderLabel = tr("order.buildCancel");
+        return;
+      }
+      if (state.selectedUnits.size() == 0 && state.selectedBuilding != null && state.selectedStructureOffersTrainMenu()) {
+        state.selectedBuilding.rallyPoint = world.copy();
+        state.orderLabel = tr("order.rallySet");
+        state.addOrderMarker(world.copy(), false);
         return;
       }
       if (state.selectedUnits.size() == 0) {
-        state.orderLabel = "NoSelection";
+        state.orderLabel = tr("order.noSelection");
         return;
       }
-      boolean queue = keyPressed && keyCode == SHIFT;
+      boolean queue = isShiftDown();
       if (state.issueHarvestOrderToSelectedMiners(world)) {
         return;
       }
@@ -84,7 +136,7 @@ class InputSystem {
       if (target != null && target.faction != state.activeFaction && state.selectedUnits.size() > 0) {
         state.clearSelectedHarvestOrders();
         state.commandSystem.attackSelected(state.selectedUnits, target);
-        state.orderLabel = "Attack";
+        state.orderLabel = tr("order.attack");
         state.addOrderMarker(target.pos.copy(), true);
       } else {
         Building bt = state.findNearestBuildingAt(world, 18, true);
@@ -92,20 +144,20 @@ class InputSystem {
           state.clearSelectedHarvestOrders();
           state.commandSystem.attackSelectedBuilding(state.selectedUnits, bt);
           PVector bc = new PVector(bt.pos.x + bt.tileW * state.map.tileSize * 0.5, bt.pos.y + bt.tileH * state.map.tileSize * 0.5);
-          state.orderLabel = "AttackBuilding";
+          state.orderLabel = tr("order.attackBuilding");
           state.addOrderMarker(bc, true);
           return;
         }
         if (state.attackMoveArmed) {
           state.clearSelectedHarvestOrders();
           state.commandSystem.attackMoveSelected(state, state.selectedUnits, world, queue);
-          state.orderLabel = "AttackMove";
+          state.orderLabel = tr("order.attackMove");
           state.addOrderMarker(world, true);
           state.attackMoveArmed = false;
         } else {
           state.clearSelectedHarvestOrders();
           state.commandSystem.moveSelected(state, state.selectedUnits, world, queue);
-          state.orderLabel = queue ? "QueueMove" : "Move";
+          state.orderLabel = queue ? tr("order.queueMove") : tr("order.move");
           state.addOrderMarker(world, false);
         }
       }
@@ -128,6 +180,10 @@ class InputSystem {
 
   void onMouseReleased(int mx, int my, int button) {
     if (button == LEFT) {
+      if (state.ui.endClick(state, mx, my)) {
+        state.ui.releaseBuildButtonPress();
+        return;
+      }
       state.ui.releaseBuildButtonPress();
     }
     if (button == LEFT && draggingMinimap) {
@@ -139,7 +195,6 @@ class InputSystem {
     }
     draggingSelect = false;
     dragEnd.set(state.camera.screenToWorld(mx, my));
-    state.clearSelection();
     float minX = min(dragStart.x, dragEnd.x);
     float minY = min(dragStart.y, dragEnd.y);
     float maxX = max(dragStart.x, dragEnd.x);
@@ -147,6 +202,7 @@ class InputSystem {
 
     boolean isClick = abs(maxX - minX) < 6 && abs(maxY - minY) < 6;
     if (isClick) {
+      boolean shift = isShiftDown();
       Unit best = null;
       float bestD = 1e9;
       for (Unit u : state.units) {
@@ -157,10 +213,49 @@ class InputSystem {
         }
       }
       if (best != null) {
-        best.selected = true;
-        state.selectedUnits.add(best);
+        if (shift) {
+          if (state.editingControlGroup >= 0) {
+            int groupEdit = state.toggleUnitInEditingControlGroup(best);
+            if (groupEdit < 0) {
+              best.selected = false;
+              state.selectedUnits.remove(best);
+              state.orderLabel = tr("order.groupMemberRemoved");
+            } else if (groupEdit > 0) {
+              if (!best.selected) {
+                best.selected = true;
+                if (!state.selectedUnits.contains(best)) {
+                  state.selectedUnits.add(best);
+                }
+              }
+              state.orderLabel = tr("order.groupMemberAdded");
+            }
+          } else {
+            if (best.selected) {
+              best.selected = false;
+              state.selectedUnits.remove(best);
+            } else {
+              best.selected = true;
+              if (!state.selectedUnits.contains(best)) {
+                state.selectedUnits.add(best);
+              }
+            }
+          }
+          return;
+        }
+        state.clearSelection();
+        int now = millis();
+        boolean isDouble = now - lastSelectClickMs <= DOUBLE_CLICK_MS && best.unitType.equals(lastSelectUnitType);
+        if (isDouble) {
+          selectAllVisibleSameType(best.unitType);
+        } else {
+          best.selected = true;
+          state.selectedUnits.add(best);
+        }
+        lastSelectClickMs = now;
+        lastSelectUnitType = best.unitType;
         return;
       }
+      state.clearSelection();
       Building bb = state.findNearestBuildingAt(dragEnd, 10, true);
       if (bb != null && bb.faction == state.activeFaction) {
         bb.selected = true;
@@ -168,17 +263,47 @@ class InputSystem {
       }
       return;
     }
+    state.clearSelection();
+    ArrayList<Unit> miners = new ArrayList<Unit>();
+    ArrayList<Unit> others = new ArrayList<Unit>();
     for (Unit u : state.units) {
       boolean inBox = u.pos.x >= minX && u.pos.x <= maxX && u.pos.y >= minY && u.pos.y <= maxY;
       if (inBox && u.faction == state.activeFaction) {
-        u.selected = true;
-        state.selectedUnits.add(u);
+        if ("miner".equals(u.unitType)) {
+          miners.add(u);
+        } else {
+          others.add(u);
+        }
       }
+    }
+    // 预判选择策略：有非矿工就优先非矿工；否则选矿工。
+    ArrayList<Unit> pick = others.size() > 0 ? others : miners;
+    for (Unit u : pick) {
+      u.selected = true;
+      state.selectedUnits.add(u);
     }
   }
 
   void onKeyPressed(char key, int keyCode) {
     if (state.gameEnded) {
+      return;
+    }
+    if (state.map == null) {
+      return;
+    }
+    if (key >= '0' && key <= '9') {
+      int groupNo = int(key - '0');
+      if (isCtrlDown()) {
+        int count = state.assignSelectionToControlGroup(groupNo);
+        state.orderLabel = tr("order.groupSaved") + " #" + groupNo + " (" + count + ")";
+      } else {
+        int count = state.recallControlGroup(groupNo);
+        if (count > 0) {
+          state.orderLabel = tr("order.groupRecalled") + " #" + groupNo + " (" + count + ")";
+        } else {
+          state.orderLabel = tr("order.groupEmpty") + " #" + groupNo;
+        }
+      }
       return;
     }
     if (key == 'q' || key == 'Q') {
@@ -195,33 +320,56 @@ class InputSystem {
     }
     if (key == 'a' || key == 'A') {
       state.attackMoveArmed = !state.attackMoveArmed;
-      state.orderLabel = state.attackMoveArmed ? "AttackMove(Armed)" : "AttackMove(Cancel)";
+      state.orderLabel = state.attackMoveArmed ? tr("order.attackMoveArmed") : tr("order.attackMoveCancel");
       return;
     }
     if (key == 'l' || key == 'L') {
       state.hardCursorLock = !state.hardCursorLock;
-      state.orderLabel = state.hardCursorLock ? "CursorLock(ON)" : "CursorLock(OFF)";
+      state.orderLabel = state.hardCursorLock ? tr("order.cursorLockOn") : tr("order.cursorLockOff");
       return;
     }
     if (key == 'p' || key == 'P') {
       state.debugShowPaths = !state.debugShowPaths;
-      state.orderLabel = state.debugShowPaths ? "DebugPaths(ON)" : "DebugPaths(OFF)";
+      state.orderLabel = state.debugShowPaths ? tr("order.debugOn") : tr("order.debugOff");
       return;
     }
-    if (key == '1') {
-      state.activeFaction = Faction.PLAYER;
-    } else if (key == '2') {
-      state.activeFaction = Faction.ENEMY;
+    if (keyCode == DELETE) {
+      if (!state.buildSystem.active) {
+        state.trySellSelectedBuilding();
+      }
+      return;
     }
   }
 
   void onMouseWheel(float amount, int mx, int my) {
+    if ( state.map == null || state.camera == null) {
+      return;
+    }
+    if (mx >= state.worldViewW) {
+      if (state.ui.onMouseWheel(amount, mx, my)) {
+        return;
+      }
+    }
     if (mx >= state.worldViewW) {
       return;
     }
     int clampedX = constrain(mx, 0, state.worldViewW - 1);
     int clampedY = constrain(my, 0, state.screenH - 1);
     state.camera.zoomAt(amount, clampedX, clampedY);
+  }
+
+  boolean isCtrlDown() {
+    if (keyEvent != null && keyEvent.isControlDown()) {
+      return true;
+    }
+    return keyPressed && keyCode == CONTROL;
+  }
+
+  boolean isShiftDown() {
+    if (keyEvent != null && keyEvent.isShiftDown()) {
+      return true;
+    }
+    return keyPressed && keyCode == SHIFT;
   }
 
   void renderSelectionBox() {
@@ -233,5 +381,26 @@ class InputSystem {
     noFill();
     stroke(120, 255, 120);
     rect(min(s0.x, s1.x), min(s0.y, s1.y), abs(s1.x - s0.x), abs(s1.y - s0.y));
+  }
+
+  void selectAllVisibleSameType(String unitType) {
+    if (unitType == null || unitType.length() == 0) {
+      return;
+    }
+    state.clearSelection();
+    for (Unit u : state.units) {
+      if (u.hp <= 0 || u.faction != state.activeFaction) {
+        continue;
+      }
+      if (!unitType.equals(u.unitType)) {
+        continue;
+      }
+      PVector s = state.camera.worldToScreen(u.pos.x, u.pos.y);
+      if (s.x < 0 || s.x > state.worldViewW || s.y < 0 || s.y > state.screenH) {
+        continue;
+      }
+      u.selected = true;
+      state.selectedUnits.add(u);
+    }
   }
 }

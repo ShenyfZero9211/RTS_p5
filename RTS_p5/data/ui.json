@@ -25,6 +25,11 @@
   "enemyAiRifleRatio": 0.52,
   "enemyAiRocketRatio": 0.3,
   "enemyAiDebug": false,
-  "playerStartCredits": 100,
-  "enemyStartCredits": 100
+  "playerStartCredits": 2000,
+  "enemyStartCredits": 100,
+  "defaultCreditCap": 2000,
+  "playerBaseSupplyCap": 8,
+  "enemyBaseSupplyCap": 8,
+  "warehouseSupplyCapBonus": 20,
+  "warehouseCreditCapBonus": 1000
 }

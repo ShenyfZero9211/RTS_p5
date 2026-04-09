@@ -48,6 +48,8 @@ class Unit extends Entity {
   int aiPatrolIndex;
   PVector lastProgressPos = new PVector();
   float stuckTimer = 0;
+  float dropoffRechooseTimer = 0;
+  boolean autoDefend = true;
 
   Unit(float x, float y, Faction faction, UnitDef def) {
     super(x, y, def.radius, faction);
@@ -68,6 +70,7 @@ class Unit extends Entity {
       // Prevent miners from all rushing at frame 0.
       autoHarvestDelay = random(1.0, 2.6);
     }
+    autoDefend = def.autoDefend;
     lastProgressPos.set(pos);
   }
 
@@ -83,7 +86,7 @@ class Unit extends Entity {
     orderType = UnitOrderType.MOVE;
     state.pathfinderRepath(this, target, queue);
     if (faction == Faction.PLAYER) {
-      state.orderLabel = "Move";
+      state.orderLabel = tr("order.move");
     }
   }
 
@@ -100,7 +103,7 @@ class Unit extends Entity {
     orderType = UnitOrderType.ATTACK_MOVE;
     state.pathfinderRepath(this, target, queue);
     if (faction == Faction.PLAYER) {
-      state.orderLabel = "AttackMove";
+      state.orderLabel = tr("order.attackMove");
     }
   }
 
@@ -140,7 +143,7 @@ class Unit extends Entity {
     moveTarget = null;
     orderType = UnitOrderType.NONE;
     if (faction == Faction.PLAYER) {
-      gs.orderLabel = "Harvest";
+      gs.orderLabel = tr("order.harvest");
     }
   }
 
@@ -175,6 +178,8 @@ class Unit extends Entity {
 
     if (faction == Faction.NEUTRAL || faction == Faction.ENEMY) {
       updateCombatAi(gs);
+    } else if (faction == Faction.PLAYER) {
+      updatePlayerDefensiveCombatAi(gs);
     }
 
     if (!canAttack) {
@@ -210,7 +215,11 @@ class Unit extends Entity {
         pathQueue.clear();
         if (attackTimer <= 0) {
           if (attackBuildingTarget != null) {
-            attackBuildingTarget.hp -= int(attackDamage);
+            if (usesProjectile && gs != null) {
+              gs.spawnRocketProjectile(this, attackBuildingTarget, attackDamage, max(120, projectileSpeed));
+            } else {
+              attackBuildingTarget.hp -= int(attackDamage);
+            }
             if (gs != null && unitType.equals("rifleman")) {
               gs.spawnMuzzleFx(this, targetPos.copy());
             }
@@ -235,12 +244,22 @@ class Unit extends Entity {
       if ((attackTarget == null || attackTarget.hp <= 0) && (attackBuildingTarget == null || attackBuildingTarget.hp <= 0)) {
         Unit next = null;
         if (faction == Faction.NEUTRAL) {
-          next = gs.findHostileInRange(this, max(attackRange * 1.8, sightRange));
+          next = gs.findHostileInRange(this, max(attackRange * 1.8, sightRange), gs);
         } else {
           next = gs.findPriorityEnemy(this, attackRange * 1.8);
         }
         if (next != null) {
           issueAttack(next);
+        } else if (faction == Faction.ENEMY && canAttack) {
+          Building hb = gs.findNearestHostileBuilding(this, max(attackRange * 1.8, sightRange));
+          if (hb != null) {
+            issueAttackBuilding(hb);
+          } else {
+            orderType = UnitOrderType.NONE;
+            state = UnitState.IDLE;
+            attackTarget = null;
+            attackBuildingTarget = null;
+          }
         } else {
           orderType = UnitOrderType.NONE;
           state = UnitState.IDLE;
@@ -263,8 +282,23 @@ class Unit extends Entity {
     }
 
     if (orderType == UnitOrderType.ATTACK_MOVE) {
+      if (attackTarget != null && attackTarget.hp <= 0) {
+        attackTarget = null;
+        if (moveTarget != null) {
+          gs.pathfinderRepath(this, moveTarget.copy(), false);
+        }
+      }
+      if (attackBuildingTarget != null && attackBuildingTarget.hp <= 0) {
+        attackBuildingTarget = null;
+        if (moveTarget != null) {
+          gs.pathfinderRepath(this, moveTarget.copy(), false);
+        }
+      }
       if (attackTarget == null && acquireTimer <= 0) {
         attackTarget = gs.findPriorityEnemy(this, attackRange * 1.4);
+        if (attackTarget == null && canAttack) {
+          attackBuildingTarget = gs.findNearestHostileBuilding(this, max(attackRange * 1.4, sightRange));
+        }
         acquireTimer = 0.15;
       }
       if (attackTarget != null && faction == Faction.PLAYER && gs != null && !gs.isUnitVisibleToPlayer(attackTarget)) {
@@ -302,6 +336,42 @@ class Unit extends Entity {
         }
         return;
       }
+      if (attackBuildingTarget != null && attackBuildingTarget.hp > 0) {
+        PVector bt = new PVector(
+          attackBuildingTarget.pos.x + attackBuildingTarget.tileW * gs.map.tileSize * 0.5,
+          attackBuildingTarget.pos.y + attackBuildingTarget.tileH * gs.map.tileSize * 0.5
+          );
+        float d = PVector.dist(pos, bt);
+        if (d <= attackRange) {
+          state = UnitState.ATTACKING;
+          pathQueue.clear();
+          if (attackTimer <= 0) {
+            if (usesProjectile && gs != null) {
+              gs.spawnRocketProjectile(this, attackBuildingTarget, attackDamage, max(120, projectileSpeed));
+            } else {
+              attackBuildingTarget.hp -= int(attackDamage);
+            }
+            if (gs != null && unitType.equals("rifleman")) {
+              gs.spawnMuzzleFx(this, bt.copy());
+            }
+            attackTimer = attackCooldown;
+          }
+        } else {
+          state = UnitState.CHASING;
+          if (repathTimer <= 0) {
+            gs.pathfinderRepath(this, bt.copy(), false);
+            repathTimer = 0.25;
+          }
+          followPath(dt, gs);
+        }
+        if (attackBuildingTarget.hp <= 0) {
+          attackBuildingTarget = null;
+          if (moveTarget != null) {
+            gs.pathfinderRepath(this, moveTarget.copy(), false);
+          }
+        }
+        return;
+      }
       if (pathQueue.size() == 0) {
         state = UnitState.IDLE;
         orderType = UnitOrderType.NONE;
@@ -328,7 +398,9 @@ class Unit extends Entity {
       }
     }
 
-    if (assignedDropoff == null || assignedDropoff.faction != faction || !assignedDropoff.completed || !assignedDropoff.buildingType.equals("mine")) {
+    BuildingDef dropDef = assignedDropoff == null ? null : gs.getBuildingDef(assignedDropoff.buildingType);
+    if (assignedDropoff == null || assignedDropoff.faction != faction || !assignedDropoff.completed
+      || dropDef == null || !dropDef.isDropoff) {
       assignedDropoff = gs.findNearestDropoffBuilding(pos, faction);
     }
     if (assignedDropoff == null) {
@@ -393,6 +465,8 @@ class Unit extends Entity {
         if (mined > 0) {
           assignedMine.amount -= mined;
           cargoGold += mined;
+          assignedDropoff = gs.findNearestDropoffBuilding(pos, faction);
+          dropoffRechooseTimer = 1.0;
           harvestMode = 3;
         } else {
           harvestMode = 0;
@@ -402,6 +476,23 @@ class Unit extends Entity {
     }
 
     if (harvestMode == 3) {
+      dropoffRechooseTimer -= dt;
+      if (dropoffRechooseTimer <= 0) {
+        dropoffRechooseTimer = 1.4;
+        Building nearer = gs.findNearestDropoffBuilding(pos, faction);
+        if (nearer != null && assignedDropoff != null && nearer != assignedDropoff) {
+          float cxo = assignedDropoff.pos.x + assignedDropoff.tileW * gs.map.tileSize * 0.5;
+          float cyo = assignedDropoff.pos.y + assignedDropoff.tileH * gs.map.tileSize * 0.5;
+          float cxn = nearer.pos.x + nearer.tileW * gs.map.tileSize * 0.5;
+          float cyn = nearer.pos.y + nearer.tileH * gs.map.tileSize * 0.5;
+          if (dist(pos.x, pos.y, cxn, cyn) + 12 < dist(pos.x, pos.y, cxo, cyo)) {
+            assignedDropoff = nearer;
+            orderType = UnitOrderType.NONE;
+            pathQueue.clear();
+            moveTarget = null;
+          }
+        }
+      }
       Building drop = assignedDropoff;
       float left = drop.pos.x;
       float top = drop.pos.y;
@@ -419,7 +510,7 @@ class Unit extends Entity {
       if (inDropoffBox || dDrop <= fallbackDeliverRange) {
         ResourcePool pool = gs.resourcePoolForFaction(faction);
         if (pool != null) {
-          pool.credits += cargoGold;
+          pool.addCredits(cargoGold);
         }
         gs.spawnDeliveryFx(pos.copy(), cargoGold);
         cargoGold = 0;
@@ -457,7 +548,7 @@ class Unit extends Entity {
     }
     aiThinkTimer = random(0.12, 0.22);
 
-    Unit visible = gs.findHostileInRange(this, sightRange);
+    Unit visible = gs.findHostileInRange(this, sightRange, gs);
     if (visible != null) {
       aiLastKnownEnemyPos = visible.pos.copy();
       aiInvestigateTimer = 2.4;
@@ -465,6 +556,17 @@ class Unit extends Entity {
         issueAttack(visible);
       }
       return;
+    }
+
+    if (faction == Faction.ENEMY && canAttack) {
+      float bRange = max(attackRange * 1.15, sightRange);
+      Building hostileB = gs.findNearestHostileBuilding(this, bRange);
+      if (hostileB != null) {
+        if (attackBuildingTarget != hostileB) {
+          issueAttackBuilding(hostileB);
+        }
+        return;
+      }
     }
 
     if (aiLastKnownEnemyPos != null && aiInvestigateTimer > 0) {
@@ -496,6 +598,26 @@ class Unit extends Entity {
       if (pathQueue.size() == 0 && orderType == UnitOrderType.NONE) {
         issueMove(wp.copy(), gs, false);
       }
+    }
+  }
+
+  void updatePlayerDefensiveCombatAi(GameState gs) {
+    if (gs == null || !canAttack || canHarvest || !autoDefend) {
+      return;
+    }
+    if (gs.attackMoveArmed) {
+      return;
+    }
+    if (orderType != UnitOrderType.NONE || state != UnitState.IDLE) {
+      return;
+    }
+    if (aiThinkTimer > 0) {
+      return;
+    }
+    aiThinkTimer = random(0.12, 0.22);
+    Unit visible = gs.findHostileInRange(this, sightRange, gs);
+    if (visible != null) {
+      issueAttack(visible);
     }
   }
 
@@ -541,6 +663,7 @@ class Unit extends Entity {
     if (delta.mag() > dist) {
       pos.set(target);
       pathQueue.remove(0);
+      return;
     } else {
       pos.add(delta);
     }
@@ -552,7 +675,9 @@ class Unit extends Entity {
     float remain = PVector.dist(pos, target);
     float arriveEps = max(6, radius * 0.9);
     if (remain <= arriveEps) {
-      pathQueue.remove(0);
+      if (pathQueue.size() > 0) {
+        pathQueue.remove(0);
+      }
       stuckTimer = 0;
       lastProgressPos.set(pos);
       return;
@@ -661,6 +786,9 @@ class Building extends Entity {
   int hp;
   int maxHp;
   boolean selected = false;
+  float towerCooldown = 0;
+  float turretAimAngle = -HALF_PI;
+  PVector rallyPoint;
 
   Building(float x, float y, int tileW, int tileH, Faction faction, BuildingDef def) {
     super(x, y, 8, faction);
@@ -720,6 +848,27 @@ class Building extends Entity {
     textSize(10);
     textAlign(LEFT, TOP);
     text(label, s.x + 3, s.y - 22);
+
+    if (buildingType != null && buildingType.equals("tower") && completed) {
+      float cx = s.x + sw * 0.5;
+      float cy = s.y + sh * 0.52;
+      float bodyR = max(4, min(sw, sh) * 0.22);
+      noStroke();
+      fill(48, 52, 60, 220);
+      ellipse(cx, cy, bodyR * 2.3, bodyR * 2.3);
+      fill(90, 96, 110, 220);
+      ellipse(cx, cy, bodyR * 1.3, bodyR * 1.3);
+      float ang = turretAimAngle;
+      float barrelLen = max(6, min(sw, sh) * 0.62);
+      float bx = cx + cos(ang) * barrelLen;
+      float by = cy + sin(ang) * barrelLen;
+      stroke(120, 128, 145, 240);
+      strokeWeight(max(2, min(sw, sh) * 0.12));
+      line(cx, cy, bx, by);
+      noStroke();
+      fill(245, 180, 120, 220);
+      ellipse(bx, by, max(3, min(sw, sh) * 0.12), max(3, min(sw, sh) * 0.12));
+    }
     popStyle();
   }
 }

@@ -160,11 +160,11 @@ class BuildSystem {
     return constrain(currentJob.target.buildProgress / currentJob.target.buildTime, 0, 1);
   }
 
-  void renderPreview(Camera camera, TileMap map, ArrayList<Building> buildings) {
+  void renderPreview(Camera camera, TileMap map, ArrayList<Building> buildings, boolean exploredOk) {
     if (!active) {
       return;
     }
-    boolean ok = canPlace(map, buildings);
+    boolean ok = canPlace(map, buildings) && exploredOk;
     PVector screen = camera.worldToScreen(previewTileX * map.tileSize, previewTileY * map.tileSize);
     noFill();
     strokeWeight(2);

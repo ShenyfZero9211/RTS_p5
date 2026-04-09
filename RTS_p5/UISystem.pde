@@ -14,7 +14,23 @@ class UISystem {
   int pressedBuildIndex = -1;
   int hoveredTrainIndex = -1;
   int pressedTrainIndex = -1;
+  String pendingActionId = "";
   float pressedFlashTimer = 0;
+  int sellBtnX;
+  int sellBtnY;
+  int sellBtnW = 72;
+  int sellBtnH = 36;
+  boolean sellBtnVisible = false;
+  UiWidgets uiWidgets = new UiWidgets();
+  ArrayList<UiHitButton> frameHitButtons = new ArrayList<UiHitButton>();
+  float infoScroll = 0;
+  float infoMaxScroll = 0;
+  float infoScrollStep = 18;
+  int infoClipX = 0;
+  int infoClipY = 0;
+  int infoClipW = 0;
+  int infoClipH = 0;
+  String infoContextKey = "";
 
   UISystem(int worldViewW, int viewportH) {
     this.sidePanelX = worldViewW;
@@ -25,6 +41,7 @@ class UISystem {
   }
 
   void render(GameState state) {
+    frameHitButtons.clear();
     textAlign(LEFT, TOP);
     sidePanelW = width - sidePanelX;
     int panelMargin = 10;
@@ -43,7 +60,7 @@ class UISystem {
     drawChamferStroke(panelX, y, panelW, viewportH - y - 10, outerChamfer, color(140, 140, 140), 2);
     drawChamferStroke(panelX + 2, y + 2, panelW - 4, viewportH - y - 14, outerChamfer - 1, color(55, 55, 55), 1);
 
-    drawCornerRivets(panelX, y, panelW, viewportH - y - 10, outerChamfer);
+    uiWidgets.drawCornerRivets(panelX, y, panelW, viewportH - y - 10, outerChamfer);
 
     // Top icon bar
     int topBarH = 34;
@@ -55,9 +72,8 @@ class UISystem {
 
     fill(230);
     textSize(15);
-    text("$", bx + 14, by + 9);
-    text("W", bx + 44, by + 9);
-    text("P", bx + 74, by + 9);
+    text("W", bx + 14, by + 9);
+    text("P", bx + 44, by + 9);
     text("RTS", bx + bw * 0.5 - 16, by + 9);
     text("G", bx + bw - 24, by + 9);
 
@@ -81,56 +97,98 @@ class UISystem {
     int contentX = tx + 14;
     int contentW = tw - 28;
     int infoY = minimap.y + minimap.h + 12;
-    int lineH = 16;
+    int infoClipTop = infoY;
+    int infoClipH = (int) max(40f, (float) (ty + tacticalH - infoClipTop - 8));
+    infoClipX = contentX;
+    infoClipY = infoClipTop;
+    infoClipW = contentW;
+    this.infoClipH = infoClipH;
+    sellBtnVisible = false;
+
+    String ctx = "none";
+    if (state.selectedBuilding != null) {
+      ctx = "b:" + state.selectedBuilding.buildingType + ":" + state.selectedBuilding.hp;
+    } else if (state.selectedUnits.size() == 1) {
+      Unit su = state.selectedUnits.get(0);
+      ctx = "u:" + su.unitType + ":" + su.hp;
+    } else {
+      ctx = "g:" + state.selectedUnits.size();
+    }
+    if (!ctx.equals(infoContextKey)) {
+      infoContextKey = ctx;
+      infoScroll = 0;
+    }
+
+    uiWidgets.pushClipRect(contentX, infoClipTop, contentW, infoClipH);
+    float contentStartY = infoY - infoScroll;
+    float cy = contentStartY;
     fill(230);
-    textSize(12);
-    text("Faction: " + state.activeFaction, contentX, infoY);
-    infoY += lineH;
-    text("Credits: " + state.resources.credits + "   Units: " + state.selectedUnits.size(), contentX, infoY);
-    infoY += lineH;
-    text("Order: " + state.orderLabel + "   BuildQ: " + state.buildSystem.queuedCount(), contentX, infoY);
-    infoY += lineH;
+    cy = uiWidgets.drawLineClamped(tr("ui.faction") + ": " + state.activeFaction, contentX, cy, contentW, 12);
+    ResourcePool pool = state.resourcePoolForFaction(state.activeFaction);
+    if (pool != null) {
+      cy = uiWidgets.drawLineClamped(tr("ui.creditsCap") + ": " + pool.credits + "/" + pool.creditCap, contentX, cy, contentW, 12);
+    }
+    cy = uiWidgets.drawLineClamped(tr("ui.supply") + ": " + state.usedSupplyForFaction(state.activeFaction) + "/" + state.supplyCapForFaction(state.activeFaction), contentX, cy, contentW, 12);
+    cy = uiWidgets.drawLineClamped(tr("ui.unitsSelected") + ": " + state.selectedUnits.size(), contentX, cy, contentW, 12);
+    cy = uiWidgets.drawLineClamped(tr("ui.order") + ": " + state.orderLabel + "   " + tr("ui.buildQueue") + ": " + state.buildSystem.queuedCount(), contentX, cy, contentW, 12);
     if (state.enemyAiDebug && state.enemyAi != null) {
       fill(180, 210, 255);
-      text("EnemyAI: " + state.enemyAi.phaseLabel() + "  $" + state.enemyResources.credits, contentX, infoY);
-      infoY += lineH;
+      cy = uiWidgets.drawLineClamped(tr("ui.enemyAi") + ": " + state.enemyAi.phaseLabel() + "  $" + state.enemyResources.credits, contentX, cy, contentW, 12);
       fill(160, 190, 220);
-      text("WaveT: " + nf(state.enemyAi.attackTimer, 1, 1) + "  Last: " + state.enemyAi.lastAction, contentX, infoY);
-      infoY += lineH;
+      cy = uiWidgets.drawLineClamped(tr("ui.waveTimer") + ": " + nf(state.enemyAi.attackTimer, 1, 1) + "  " + tr("ui.last") + ": " + state.enemyAi.lastAction, contentX, cy, contentW, 12);
       fill(230);
     }
     if (state.selectedBuilding != null) {
       Building sb = state.selectedBuilding;
       BuildingDef bdef = state.getBuildingDef(sb.buildingType);
       fill(210, 235, 255);
-      text("Selected Building: " + sb.buildingType.toUpperCase(), contentX, infoY);
-      infoY += lineH;
+      cy = uiWidgets.drawLineClamped(tr("ui.building") + ": " + sb.buildingType.toUpperCase(), contentX, cy, contentW, 12);
       fill(200);
-      text("HP: " + sb.hp + " / " + max(1, sb.maxHp) + "   Size: " + sb.tileW + "x" + sb.tileH, contentX, infoY);
-      infoY += lineH;
+      cy = uiWidgets.drawLineClamped("HP: " + sb.hp + " / " + max(1, sb.maxHp) + "   " + sb.tileW + "x" + sb.tileH, contentX, cy, contentW, 12);
       if (bdef != null) {
-        text("Category: " + bdef.category + "   BuildTime: " + nf(bdef.buildTime, 1, 1), contentX, infoY);
-        infoY += lineH;
+        cy = uiWidgets.drawLineClamped(tr("ui.category") + ": " + bdef.category + "   Time: " + nf(bdef.buildTime, 1, 1), contentX, cy, contentW, 12);
+        if (bdef.supplyCapBonus > 0 || bdef.creditCapBonus > 0) {
+          cy = uiWidgets.drawLineClamped(tr("ui.supply") + " +" + bdef.supplyCapBonus + "   " + tr("ui.creditsCap") + " +" + bdef.creditCapBonus, contentX, cy, contentW, 12);
+        }
       }
       fill(230);
+      if (state.canSellSelectedBuilding() && bdef != null) {
+        int refund = max(0, int(bdef.cost * bdef.sellRefundRatio));
+        cy = uiWidgets.drawLineClamped(tr("ui.sellRefund") + " ~$" + refund + "  [Del]", contentX, cy, contentW, 12);
+        sellBtnX = contentX;
+        sellBtnY = (int) (cy + 4);
+        sellBtnVisible = true;
+        UiHitButton sellHit = new UiHitButton();
+        sellHit.x = sellBtnX;
+        sellHit.y = sellBtnY;
+        sellHit.w = sellBtnW;
+        sellHit.h = sellBtnH;
+        sellHit.chamfer = 4;
+        sellHit.label = tr("ui.sell");
+        sellHit.sublabel = "$" + refund;
+        sellHit.sublabel2 = "";
+        sellHit.actionId = "sell";
+        sellHit.style = 2;
+        sellHit.enabled = true;
+        sellHit.hovered = mouseX >= sellHit.x && mouseX <= sellHit.x + sellHit.w && mouseY >= sellHit.y && mouseY <= sellHit.y + sellHit.h;
+        frameHitButtons.add(sellHit);
+        uiWidgets.drawHitButton(sellHit);
+        textAlign(LEFT, TOP);
+        cy = sellBtnY + sellBtnH + 8;
+      }
     } else if (state.selectedUnits.size() == 1) {
       Unit su = state.selectedUnits.get(0);
       fill(210, 235, 255);
-      text("Selected Unit: " + unitTypeLabel(su.unitType), contentX, infoY);
-      infoY += lineH;
+      cy = uiWidgets.drawLineClamped(tr("ui.unit") + ": " + unitTypeLabel(su.unitType), contentX, cy, contentW, 12);
       fill(200);
-      text("HP: " + su.hp + "   Role: " + su.unitType, contentX, infoY);
-      infoY += lineH;
-      text("ATK: " + int(su.attackDamage) + "   RNG: " + int(su.attackRange) + "   SPD: " + int(su.speed), contentX, infoY);
-      infoY += lineH;
+      cy = uiWidgets.drawLineClamped("HP: " + su.hp + "   " + su.unitType, contentX, cy, contentW, 12);
+      cy = uiWidgets.drawLineClamped("ATK " + int(su.attackDamage) + "  RNG " + int(su.attackRange) + "  SPD " + int(su.speed), contentX, cy, contentW, 12);
       if (su.canHarvest) {
-        text("Harvest: cargo " + su.cargoGold + "   mode " + su.harvestMode, contentX, infoY);
-        infoY += lineH;
+        cy = uiWidgets.drawLineClamped("Harvest cargo " + su.cargoGold + "  m" + su.harvestMode, contentX, cy, contentW, 12);
       }
       if (su.faction == Faction.NEUTRAL || su.faction == Faction.ENEMY) {
         fill(255, 200, 140);
-        text("AI: " + su.aiDebugStateLabel(), contentX, infoY);
-        infoY += lineH;
+        cy = uiWidgets.drawLineClamped("AI: " + su.aiDebugStateLabel(), contentX, cy, contentW, 12);
       }
       fill(230);
     } else if (state.selectedUnits.size() > 1) {
@@ -147,33 +205,34 @@ class UISystem {
         }
       }
       fill(210, 235, 255);
-      text("Selected Group: " + state.selectedUnits.size() + " units", contentX, infoY);
-      infoY += lineH;
+      cy = uiWidgets.drawLineClamped(tr("ui.group") + ": " + state.selectedUnits.size(), contentX, cy, contentW, 12);
       fill(200);
-      text("Miner " + miners + "   Rifle " + rifles + "   Rocket " + rockets, contentX, infoY);
-      infoY += lineH;
+      String[] lines = {
+        "Miner " + miners + "   Rifle " + rifles + "   Rocket " + rockets
+      };
+      cy = uiWidgets.drawList(contentX, cy, contentW, 15, lines, 0, 4, 12);
       fill(230);
     }
     fill(190);
-    text("A:" + (state.attackMoveArmed ? "ON" : "OFF") + "  L:" + (state.hardCursorLock ? "ON" : "OFF") + "  P:" + (state.debugShowPaths ? "ON" : "OFF"), contentX, infoY);
-    infoY += lineH;
-    text("LMB Select/Place  RMB Move/Attack", contentX, infoY);
-    infoY += lineH;
-    text("Select Command Post to build, or Barracks to train (Q/W/E)", contentX, infoY);
-    infoY += lineH + 4;
-
-    float p = state.buildSystem.currentProgress01();
-    if (p > 0) {
-      fill(20, 20, 20);
-      rect(contentX, infoY, contentW, 10);
-      fill(80, 230, 110);
-      rect(contentX, infoY, contentW * p, 10);
-      fill(220);
-      infoY += 12;
-      text("Constructing: " + int(p * 100) + "%", contentX, infoY);
-      infoY += lineH;
+    cy = uiWidgets.drawLineClamped("A:" + (state.attackMoveArmed ? "ON" : "OFF") + "  L:" + (state.hardCursorLock ? "ON" : "OFF") + "  P:" + (state.debugShowPaths ? "ON" : "OFF"), contentX, cy, contentW, 11);
+    cy = uiWidgets.drawTextBlock(tr("ui.hint.controls"), contentX, cy, contentW, infoClipTop + infoClipH - cy - 2, 11, 14);
+    uiWidgets.popClipRect();
+    float infoContentH = max(0, cy - contentStartY);
+    infoMaxScroll = max(0, infoContentH - infoClipH + 6);
+    infoScroll = constrain(infoScroll, 0, infoMaxScroll);
+    infoY = (int) max((float) infoY, cy) + 4;
+    if (infoMaxScroll > 0.5) {
+      float trackX = contentX + contentW - 5;
+      float trackY = infoClipTop;
+      float trackH = infoClipH;
+      noStroke();
+      fill(24, 28, 32, 180);
+      rect(trackX, trackY, 4, trackH, 2);
+      float thumbH = max(18, trackH * (trackH / max(trackH, infoContentH)));
+      float thumbY = trackY + (trackH - thumbH) * (infoScroll / max(1, infoMaxScroll));
+      fill(120, 145, 175, 220);
+      rect(trackX, thumbY, 4, thumbH, 2);
     }
-
     y += tacticalH + 12;
 
     // Context command panel (StarCraft / C&C Generals: content follows selected structure)
@@ -186,12 +245,12 @@ class UISystem {
     textSize(11);
     textAlign(LEFT, CENTER);
     if (state.selectedStructureOffersBuildMenu()) {
-      text("CONSTRUCT  —  " + state.selectedBuilding.buildingType.toUpperCase(), cmdx + 10, y + cmdHeaderH * 0.5);
+      text(tr("ui.construct") + "  —  " + state.selectedBuilding.buildingType.toUpperCase(), cmdx + 10, y + cmdHeaderH * 0.5);
     } else if (state.selectedStructureOffersTrainMenu()) {
       BuildingDef pd = state.getBuildingDef(state.selectedBuilding.buildingType);
-      text("TRAIN  —  " + (pd != null ? pd.id.toUpperCase() : "?"), cmdx + 10, y + cmdHeaderH * 0.5);
+      text(tr("ui.train") + "  —  " + (pd != null ? pd.id.toUpperCase() : "?"), cmdx + 10, y + cmdHeaderH * 0.5);
     } else {
-      text("COMMANDS  —  select a structure", cmdx + 10, y + cmdHeaderH * 0.5);
+      text(tr("ui.commands") + "  —  " + tr("ui.selectStructure"), cmdx + 10, y + cmdHeaderH * 0.5);
     }
     textAlign(LEFT, TOP);
     y += cmdHeaderH + 8;
@@ -214,7 +273,7 @@ class UISystem {
     if (state.buildSystem.lastFailReason.length() > 0 && state.selectedStructureOffersBuildMenu()) {
       fill(255, 130, 130);
       textSize(11);
-      text("Build error: " + state.buildSystem.lastFailReason, panelX + 14, buildButtonsY - 18);
+      text(tr("ui.buildError") + ": " + state.buildSystem.lastFailReason, panelX + 14, buildButtonsY - 18);
     }
   }
 
@@ -262,21 +321,6 @@ class UISystem {
     vertex(x, y + h - c);
     vertex(x, y + c);
     endShape(CLOSE);
-  }
-
-  void drawCornerRivets(float x, float y, float w, float h, float c) {
-    noStroke();
-    fill(90, 90, 90);
-    float inset = max(6, c * 0.45);
-    ellipse(x + inset, y + inset, 5, 5);
-    ellipse(x + w - inset, y + inset, 5, 5);
-    ellipse(x + inset, y + h - inset, 5, 5);
-    ellipse(x + w - inset, y + h - inset, 5, 5);
-    fill(55, 55, 55);
-    ellipse(x + inset, y + inset, 2, 2);
-    ellipse(x + w - inset, y + inset, 2, 2);
-    ellipse(x + inset, y + h - inset, 2, 2);
-    ellipse(x + w - inset, y + h - inset, 2, 2);
   }
 
   void renderBlueprintThumb(BuildingDef def, int bx, int by, int bw, int bh) {
@@ -380,13 +424,11 @@ class UISystem {
     drawChamferStroke(cmdx, y, cmdw, idleH, 4, color(60, 60, 64), 1);
     fill(140, 150, 165);
     textSize(11);
-    text("Select your Command Post (base)", cmdx + 12, y + 14);
-    text("to open the structure palette.", cmdx + 12, y + 30);
-    text("Select Barracks (or another producer)", cmdx + 12, y + 46);
-    text("to train its roster only.", cmdx + 12, y + 62);
+    text(tr("ui.hint.idle1"), cmdx + 12, y + 14);
+    text(tr("ui.hint.idle2"), cmdx + 12, y + 30);
     if (state.selectedUnits.size() > 0) {
       fill(175, 188, 205);
-      text("Unit selection uses the world view.", cmdx + 12, y + 82);
+      text(tr("ui.hint.controls"), cmdx + 12, y + 82);
     }
   }
 
@@ -411,97 +453,163 @@ class UISystem {
       int thumbH = buildButtonH - 10;
       int thumbX = x + 6;
       int thumbY = y + 5;
-      int textX = thumbX + thumbW + 8;
 
       boolean armed = (state.buildSystem.active && armedPalette == i);
       boolean hovered = hoveredBuildIndex == i;
       boolean pressed = pressedBuildIndex == i;
       boolean unlocked = state.buildSystem.canBuildDefForFaction(def, state.buildings, state.activeFaction);
 
-      int baseFill = color(48, 48, 48);
-      if (!unlocked) {
-        baseFill = color(38, 38, 38);
-      } else if (armed) {
-        baseFill = color(78, 108, 72);
-      } else if (hovered) {
-        baseFill = color(62, 62, 62);
-      }
-      if (pressed) {
-        baseFill = color(95, 130, 85);
-      }
-      drawChamferFill(x, y, buildCellW, buildButtonH, cellChamfer, baseFill);
-
-      int strokeCol = unlocked ? color(70, 70, 70) : color(55, 55, 55);
-      float strokeW = 1;
-      if (hovered && unlocked) {
-        strokeCol = color(120, 170, 120);
-      }
-      if (armed && unlocked) {
-        strokeCol = color(130, 240, 130);
-        strokeW = 2;
-      }
-      if (pressed && unlocked) {
-        strokeCol = color(170, 255, 170);
-        strokeW = 2;
-      }
-      drawChamferStroke(x, y, buildCellW, buildButtonH, cellChamfer, strokeCol, strokeW);
+      UiHitButton hb = new UiHitButton();
+      hb.x = x;
+      hb.y = y;
+      hb.w = buildCellW;
+      hb.h = buildButtonH;
+      hb.chamfer = cellChamfer;
+      hb.actionId = "build:" + i;
+      hb.style = 0;
+      hb.enabled = unlocked;
+      hb.hovered = hovered && unlocked;
+      hb.pressed = pressed && unlocked;
+      hb.emphasisArmed = armed && unlocked;
+      hb.labelInsetX = (thumbX + thumbW + 8) - x;
+      hb.label = def.id.toUpperCase();
+      hb.sublabel = "$" + def.cost;
+      hb.sublabel2 = def.tileW + " x " + def.tileH;
+      frameHitButtons.add(hb);
+      uiWidgets.drawHitButton(hb);
 
       renderBlueprintThumb(def, thumbX, thumbY, thumbW, thumbH);
 
-      fill(unlocked ? 240 : 140);
-      textSize(11);
-      text(def.id.toUpperCase(), textX, y + 8);
-      fill(unlocked ? 200 : 120);
-      text("$" + def.cost, textX, y + 24);
-      fill(unlocked ? 175 : 105);
-      text(def.tileW + " x " + def.tileH, textX, y + 38);
+      int queueCount = state.queuedBuildCountForDef(def.id, state.activeFaction);
+      float progress = state.activeBuildProgressForDef(def.id, state.activeFaction);
+      renderButtonProgress(x, y, buildCellW, buildButtonH, queueCount, progress);
 
       if (!unlocked) {
         fill(255, 120, 120);
         textSize(10);
-        text("LOCKED", x + buildCellW - 44, y + 4);
+        text(tr("ui.locked"), x + buildCellW - 44, y + 4);
       }
     }
   }
 
-  boolean handleClick(GameState state, int mx, int my) {
+  boolean beginClick(GameState state, int mx, int my) {
     if (minimap.contains(mx, my)) {
       return false;
     }
-    if (state.selectedStructureOffersTrainMenu()) {
-      int tidx = trainButtonIndexAt(mx, my, state);
-      if (tidx >= 0) {
-        BuildingDef bdef = state.getBuildingDef(state.selectedBuilding.buildingType);
-        if (bdef != null && tidx < bdef.trainableUnits.length) {
-          pressedTrainIndex = tidx;
-          state.trainUnitAtSelectedBuilding(bdef.trainableUnits[tidx]);
-          return true;
-        }
+    pendingActionId = "";
+    for (int i = frameHitButtons.size() - 1; i >= 0; i--) {
+      UiHitButton b = frameHitButtons.get(i);
+      if (!b.enabled || !uiWidgets.hitContains(b, float(mx), float(my))) {
+        continue;
       }
-      return mx >= sidePanelX;
+      pendingActionId = b.actionId;
+      if (b.actionId.startsWith("train:")) {
+        pressedTrainIndex = parseInt(b.actionId.substring(6));
+      } else if (b.actionId.startsWith("build:")) {
+        pressedBuildIndex = parseInt(b.actionId.substring(6));
+      }
+      return true;
     }
-    if (state.selectedStructureOffersBuildMenu()) {
-      int idx = buildButtonIndexAt(mx, my, state);
-      if (idx >= 0) {
-        int g = globalBuildIndexForPalette(state, idx);
-        if (g < 0) {
-          return mx >= sidePanelX;
-        }
-        BuildingDef def = state.buildSystem.defs.get(g);
-        if (!state.buildSystem.canBuildDefForFaction(def, state.buildings, state.activeFaction)) {
-          state.buildSystem.lastFailReason = "Need prerequisite";
-          return true;
-        }
-        state.buildSystem.selectIndex(g);
-        state.buildSystem.active = true;
-        state.buildSystem.lastFailReason = "";
-        state.orderLabel = "BuildPlace(Armed)";
-        armedBuildIndex = idx;
-        pressedBuildIndex = idx;
-        pressedFlashTimer = 0;
+    return false;
+  }
+
+  boolean endClick(GameState state, int mx, int my) {
+    String action = pendingActionId;
+    pendingActionId = "";
+    if (action == null || action.length() == 0) {
+      return false;
+    }
+    boolean releasedOnSameButton = false;
+    for (int i = frameHitButtons.size() - 1; i >= 0; i--) {
+      UiHitButton b = frameHitButtons.get(i);
+      if (!b.enabled || !uiWidgets.hitContains(b, float(mx), float(my))) {
+        continue;
+      }
+      if (action.equals(b.actionId)) {
+        releasedOnSameButton = true;
+      }
+      break;
+    }
+    if (!releasedOnSameButton) {
+      return false;
+    }
+    if ("sell".equals(action)) {
+      state.trySellSelectedBuilding();
+      return true;
+    }
+    if (action.startsWith("train:")) {
+      int tidx = parseInt(action.substring(6));
+      BuildingDef bdef = state.getBuildingDef(state.selectedBuilding.buildingType);
+      if (bdef != null && tidx >= 0 && tidx < bdef.trainableUnits.length) {
+        pressedTrainIndex = tidx;
+        state.trainUnitAtSelectedBuilding(bdef.trainableUnits[tidx]);
+      }
+      return true;
+    }
+    if (action.startsWith("build:")) {
+      int idx = parseInt(action.substring(6));
+      int g = globalBuildIndexForPalette(state, idx);
+      if (g < 0) {
         return true;
       }
-      return mx >= sidePanelX;
+      BuildingDef def = state.buildSystem.defs.get(g);
+      if (!state.buildSystem.canBuildDefForFaction(def, state.buildings, state.activeFaction)) {
+        state.buildSystem.lastFailReason = "Need prerequisite";
+        return true;
+      }
+      state.buildSystem.selectIndex(g);
+      state.buildSystem.active = true;
+      state.buildSystem.lastFailReason = "";
+      state.orderLabel = tr("order.buildArmed");
+      armedBuildIndex = idx;
+      pressedBuildIndex = idx;
+      pressedFlashTimer = 0;
+      return true;
+    }
+    return false;
+  }
+
+  boolean onMouseWheel(float amount, int mx, int my) {
+    if (mx < infoClipX || mx > infoClipX + infoClipW || my < infoClipY || my > infoClipY + infoClipH) {
+      return false;
+    }
+    if (infoMaxScroll <= 0) {
+      return true;
+    }
+    infoScroll = constrain(infoScroll + amount * infoScrollStep, 0, infoMaxScroll);
+    return true;
+  }
+
+  boolean handleRightClickQueueCancel(GameState state, int mx, int my) {
+    if (mx < sidePanelX) {
+      return false;
+    }
+    for (int i = frameHitButtons.size() - 1; i >= 0; i--) {
+      UiHitButton b = frameHitButtons.get(i);
+      if (!uiWidgets.hitContains(b, float(mx), float(my))) {
+        continue;
+      }
+      if (b.actionId.startsWith("train:")) {
+        if (state.selectedBuilding == null) {
+          return true;
+        }
+        int tidx = parseInt(b.actionId.substring(6));
+        BuildingDef bdef = state.getBuildingDef(state.selectedBuilding.buildingType);
+        if (bdef != null && bdef.trainableUnits != null && tidx >= 0 && tidx < bdef.trainableUnits.length) {
+          state.cancelOneTrainJobForSelectedBuilding(bdef.trainableUnits[tidx]);
+        }
+        return true;
+      }
+      if (b.actionId.startsWith("build:")) {
+        int idx = parseInt(b.actionId.substring(6));
+        int g = globalBuildIndexForPalette(state, idx);
+        if (g >= 0) {
+          BuildingDef def = state.buildSystem.defs.get(g);
+          state.cancelOneBuildJobByDef(def.id, state.activeFaction);
+        }
+        return true;
+      }
+      return true;
     }
     return mx >= sidePanelX;
   }
@@ -530,6 +638,7 @@ class UISystem {
   }
 
   void releaseBuildButtonPress() {
+    pendingActionId = "";
     pressedBuildIndex = -1;
     pressedTrainIndex = -1;
     pressedFlashTimer = 0;
@@ -584,35 +693,64 @@ class UISystem {
       int y = buildButtonsY + row * (buildButtonH + buildButtonGap);
       boolean hovered = hoveredTrainIndex == i;
       boolean pressed = pressedTrainIndex == i;
-      boolean unlocked = state.resources.canAfford(def.cost);
-
-      int baseFill = color(48, 48, 48);
-      if (!state.resources.canAfford(def.cost)) {
-        baseFill = color(40, 40, 40);
-      } else if (hovered) {
-        baseFill = color(58, 68, 92);
-      }
-      if (pressed && unlocked) {
-        baseFill = color(85, 110, 150);
-      }
-      drawChamferFill(x, y, buildCellW, buildButtonH, cellChamfer, baseFill);
-      int strokeCol = unlocked ? color(95, 130, 190) : color(70, 70, 70);
-      float strokeW = (hovered && unlocked) ? 2 : 1;
-      drawChamferStroke(x, y, buildCellW, buildButtonH, cellChamfer, strokeCol, strokeW);
-
-      fill(unlocked ? 238 : 140);
-      textSize(11);
-      text(unitTypeLabel(uid), x + 8, y + 8);
-      fill(unlocked ? 200 : 120);
+      boolean canAfford = state.resources.canAfford(def.cost);
+      boolean hasSupply = state.usedSupplyForFaction(state.activeFaction) + max(0, def.supplyCost) <= state.supplyCapForFaction(state.activeFaction);
+      boolean unlocked = canAfford && hasSupply;
       String hk = trainHotkeyLabel(i);
-      text("$" + def.cost + (hk.length() > 0 ? "   [" + hk + "]" : ""), x + 8, y + 24);
-      fill(unlocked ? 175 : 110);
-      text("HP " + def.hp + "  RNG " + int(def.attackRange), x + 8, y + 38);
-      if (!state.resources.canAfford(def.cost)) {
+
+      UiHitButton hb = new UiHitButton();
+      hb.x = x;
+      hb.y = y;
+      hb.w = buildCellW;
+      hb.h = buildButtonH;
+      hb.chamfer = cellChamfer;
+      hb.actionId = "train:" + i;
+      hb.style = 1;
+      hb.enabled = unlocked;
+      hb.hovered = hovered && unlocked;
+      hb.pressed = pressed && unlocked;
+      hb.label = unitTypeLabel(uid);
+      hb.sublabel = "$" + def.cost + (hk.length() > 0 ? "   [" + hk + "]" : "");
+      hb.sublabel2 = "HP " + def.hp + "  RNG " + int(def.attackRange);
+      frameHitButtons.add(hb);
+      uiWidgets.drawHitButton(hb);
+
+      int queueCount = state.queuedTrainCountForUnit(state.selectedBuilding, uid);
+      float progress = state.activeTrainProgressForUnit(state.selectedBuilding, uid);
+      renderButtonProgress(x, y, buildCellW, buildButtonH, queueCount, progress);
+
+      if (!unlocked) {
         fill(255, 150, 130);
         textSize(10);
-        text("LOW CREDITS", x + buildCellW - 64, y + 4);
+        text(canAfford ? tr("ui.lowSupply") : tr("ui.lowCredits"), x + buildCellW - 64, y + 4);
       }
+    }
+  }
+
+  void renderButtonProgress(int x, int y, int w, int h, int queueCount, float progress01) {
+    if (queueCount <= 0 && progress01 < 0) {
+      return;
+    }
+    if (queueCount > 0) {
+      fill(178, 205, 230);
+      textSize(10);
+      textAlign(RIGHT, TOP);
+      text("Q" + queueCount, x + w - 6, y + 4);
+      textAlign(LEFT, TOP);
+    }
+    if (progress01 >= 0) {
+      int barX = x + 6;
+      int barY = y + h - 7;
+      int barW = w - 12;
+      int barH = 4;
+      noStroke();
+      fill(40, 42, 46, 220);
+      rect(barX, barY, barW, barH);
+      fill(95, 220, 130);
+      rect(barX, barY, int(barW * constrain(progress01, 0, 1)), barH);
+      stroke(72, 82, 86);
+      noFill();
+      rect(barX, barY, barW, barH);
     }
   }
 }

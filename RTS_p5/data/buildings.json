@@ -20,6 +20,7 @@
       "tileH": 2,
       "buildTime": 4.0,
       "cost": 120,
+      "sellRefundRatio": 0.5,
       "requires": ["base"],
       "canTrainUnits": false,
       "trainableUnits": [],
@@ -33,24 +34,54 @@
       "tileH": 2,
       "buildTime": 6.0,
       "cost": 180,
-      "requires": ["base", "depot"],
+      "sellRefundRatio": 0.5,
+      "requires": ["base", "warehouse"],
       "canTrainUnits": true,
       "trainableUnits": ["miner", "rifleman", "rocketeer"],
+      "spawnPoints": [
+        { "mode": "localTile", "x": 1, "y": 2 },
+        { "mode": "localTile", "x": 2, "y": 2 },
+        { "mode": "localTile", "x": 0, "y": 2 }
+      ],
+      "spawnClearancePad": 3.0,
+      "useLegacySpawnFallback": true,
       "isDropoff": false,
       "isMainBase": false
     },
     {
-      "id": "depot",
-      "category": "supply",
+      "id": "warehouse",
+      "category": "logistics",
       "tileW": 2,
       "tileH": 2,
-      "buildTime": 3.0,
-      "cost": 90,
+      "buildTime": 4.5,
+      "cost": 130,
+      "sellRefundRatio": 0.5,
       "requires": ["base"],
       "canTrainUnits": false,
       "trainableUnits": [],
       "isDropoff": false,
-      "isMainBase": false
+      "isMainBase": false,
+      "supplyCapBonus": 20,
+      "creditCapBonus": 1000
+    },
+    {
+      "id": "tower",
+      "category": "military",
+      "tileW": 1,
+      "tileH": 1,
+      "buildTime": 5.0,
+      "cost": 140,
+      "sellRefundRatio": 0.5,
+      "requires": ["base", "warehouse", "barracks"],
+      "canTrainUnits": false,
+      "trainableUnits": [],
+      "isDropoff": false,
+      "isMainBase": false,
+      "isTower": true,
+      "towerAttackRange": 230,
+      "towerDamage": 16,
+      "towerCooldown": 1.05,
+      "towerProjectileSpeed": 280
     }
   ]
 }

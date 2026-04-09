@@ -17,7 +17,9 @@
       "projectileSpeed": 0,
       "canHarvest": true,
       "harvestAmount": 5,
-      "harvestTime": 1.2
+      "harvestTime": 1.2,
+      "autoDefend": false,
+      "supplyCost": 1
     },
     {
       "id": "rifleman",
@@ -36,7 +38,9 @@
       "projectileSpeed": 0,
       "canHarvest": false,
       "harvestAmount": 0,
-      "harvestTime": 0
+      "harvestTime": 0,
+      "autoDefend": true,
+      "supplyCost": 1
     },
     {
       "id": "rocketeer",
@@ -55,7 +59,9 @@
       "projectileSpeed": 290,
       "canHarvest": false,
       "harvestAmount": 0,
-      "harvestTime": 0
+      "harvestTime": 0,
+      "autoDefend": true,
+      "supplyCost": 2
     }
   ]
 }
