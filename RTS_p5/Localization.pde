@@ -10,7 +10,7 @@ class Localization {
   LanguageMode mode = LanguageMode.AUTO;
   HashMap<String, String> zh = new HashMap<String, String>();
   HashMap<String, String> en = new HashMap<String, String>();
-  String settingsPath = "settings_user.json";
+  String settingsPath = "data/settings_user.json";
 
   Localization() {
     initDict();
@@ -37,7 +37,7 @@ class Localization {
     put("menu.lang.zh", "语言：中文", "Language: Chinese");
     put("menu.lang.en", "语言：英文", "Language: English");
     put("menu.lang.label", "语言", "Language");
-    put("menu.persist.hint", "语言保存到 settings_user.json", "Language is saved to settings_user.json");
+    put("menu.persist.hint", "语言保存到 data/settings_user.json", "Language is saved to data/settings_user.json");
 
     put("overlay.defeat", "被击败", "DEFEAT");
     put("overlay.victory", "胜利", "VICTORY");
