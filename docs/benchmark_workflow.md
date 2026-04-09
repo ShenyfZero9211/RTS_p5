@@ -33,6 +33,18 @@ Compare latest vs previous runs:
 powershell -ExecutionPolicy Bypass -File .\benchmark-compare.ps1
 ```
 
+Visual report (lightweight markdown):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\benchmark-viz.ps1
+```
+
+Interactive dashboard (HTML):
+
+```powershell
+python .\tools\benchmark_dashboard.py
+```
+
 Legacy (build log) compare:
 
 ```powershell
@@ -53,6 +65,8 @@ powershell -ExecutionPolicy Bypass -File .\benchmark-compare.ps1 -LegacyBuildLog
 - Reinforcement waves can be overridden with `-ReinforceIntervalSec` and `-ReinforceCountPerFaction`
 - `benchmark-compare.ps1` now groups by scenario key: `profile|intensity|reinforce_interval|reinforce_count|troop_profile`
 - `benchmark-matrix.ps1` supports profile × intensity matrix output
+- `benchmark-viz.ps1` generates a markdown visual report from runtime CSV
+- `tools/benchmark_dashboard.py` generates an interactive Plotly HTML dashboard
 
 ## Suggested Regression Gate
 - Build must pass

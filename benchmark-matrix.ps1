@@ -7,6 +7,7 @@ param(
   [string[]]$Intensities = @("medium", "heavy", "extreme"),
   [ValidateSet("balanced","anti-armor","swarm")]
   [string]$TroopProfile = "balanced",
+  [switch]$SkipVisualize,
   [int]$DurationSec = 30,
   [int]$WarmupSec = 5,
   [int]$RunTimeoutSec = 240,
@@ -16,6 +17,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $benchScript = Join-Path $ProjectRoot "benchmark.ps1"
+$vizScript = Join-Path $ProjectRoot "benchmark-viz.ps1"
+$dashboardScript = Join-Path $ProjectRoot "tools\benchmark_dashboard.py"
 $uiPath = Join-Path $ProjectRoot "RTS_p5\data\ui.json"
 $backupUiPath = Join-Path $ProjectRoot "RTS_p5\data\ui.matrix_backup.json"
 $summaryDir = Join-Path $ProjectRoot "benchmarks"
@@ -162,3 +165,30 @@ $content += "Matrix cells show latest metrics for each profile-intensity combina
 
 $content -join "`r`n" | Out-File -FilePath $summaryPath -Encoding UTF8
 Write-Host "[MATRIX] Summary created: $summaryPath"
+
+if (!$SkipVisualize) {
+  $vizOut = Join-Path $summaryDir "visual-report-$timestamp.md"
+  $dashOut = Join-Path $summaryDir "dashboard-$timestamp.html"
+
+  if (Test-Path $vizScript) {
+    Write-Host "[MATRIX] Running visual markdown report..."
+    powershell -ExecutionPolicy Bypass -File $vizScript -ProjectRoot $ProjectRoot -CsvPath $runtimeCsv -OutputPath $vizOut -TroopProfile $TroopProfile
+    if ($LASTEXITCODE -ne 0) {
+      throw "benchmark-viz.ps1 failed with code $LASTEXITCODE"
+    }
+    Write-Host "[MATRIX] Visual report: $vizOut"
+  } else {
+    Write-Host "[MATRIX] Skip visual markdown: script not found ($vizScript)"
+  }
+
+  if (Test-Path $dashboardScript) {
+    Write-Host "[MATRIX] Running dashboard generation..."
+    python $dashboardScript --project-root $ProjectRoot --csv-path $runtimeCsv --output-path $dashOut
+    if ($LASTEXITCODE -ne 0) {
+      throw "benchmark_dashboard.py failed with code $LASTEXITCODE"
+    }
+    Write-Host "[MATRIX] Dashboard: $dashOut"
+  } else {
+    Write-Host "[MATRIX] Skip dashboard: script not found ($dashboardScript)"
+  }
+}
