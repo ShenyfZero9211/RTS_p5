@@ -3,3 +3,4 @@
 .DS_Store
 Thumbs.db
 *.log
+_cli_build_out/
