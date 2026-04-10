@@ -303,6 +303,13 @@ class InputSystem {
       }
       return;
     }
+    if (keyCode == java.awt.event.KeyEvent.VK_F10) {
+      if (game != null && game.benchmarkRuntime != null && game.benchmarkRuntime.isManualControlActive()) {
+        game.benchmarkRuntime.requestManualFinish();
+        state.orderLabel = "BENCH manual finish requested";
+      }
+      return;
+    }
   }
 
   void onMouseWheel(float amount, int mx, int my) {

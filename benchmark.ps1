@@ -10,6 +10,9 @@ param(
   [string]$BattleIntensity = "heavy",
   [ValidateSet("balanced","anti-armor","swarm")]
   [string]$TroopProfile = "balanced",
+  [switch]$ManualControl,
+  [string]$ManualEndKey = "F10",
+  [switch]$ManualAutoFrontline,
   [double]$ReinforceIntervalSec = -1,
   [int]$ReinforceCountPerFaction = -1
 )
@@ -56,13 +59,16 @@ try {
   $runtimeCfg = [ordered]@{
     enabled = $true
     autoStartGame = $true
-    autoExit = $true
+    autoExit = (-not $ManualControl.IsPresent)
     durationSec = [Math]::Max(5, $DurationSec)
     warmupSec = [Math]::Max(0, [Math]::Min($WarmupSec, $DurationSec - 1))
     orbitPeriodSec = 24
     runId = $runId
     battleIntensity = $BattleIntensity
     troopProfile = $TroopProfile
+    manualControl = $ManualControl.IsPresent
+    manualEndKey = $ManualEndKey
+    manualAutoFrontline = $ManualAutoFrontline.IsPresent
     reinforceIntervalSec = $ReinforceIntervalSec
     reinforceCountPerFaction = $ReinforceCountPerFaction
     outputCsv = "benchmarks/runtime_metrics.csv"
@@ -120,6 +126,9 @@ try {
 - runtimeProfilingOverlay: $($settings.runtimeProfilingOverlay)
 - battleIntensity: $BattleIntensity
 - troopProfile: $TroopProfile
+- manualControl: $($ManualControl.IsPresent)
+- manualEndKey: $ManualEndKey
+- manualAutoFrontline: $($ManualAutoFrontline.IsPresent)
 - reinforceIntervalSec: $ReinforceIntervalSec
 - reinforceCountPerFaction: $ReinforceCountPerFaction
 
@@ -159,6 +168,9 @@ finally {
       runId = ""
       battleIntensity = "heavy"
       troopProfile = "balanced"
+      manualControl = $false
+      manualEndKey = "F10"
+      manualAutoFrontline = $false
       reinforceIntervalSec = -1
       reinforceCountPerFaction = -1
       outputCsv = "benchmarks/runtime_metrics.csv"

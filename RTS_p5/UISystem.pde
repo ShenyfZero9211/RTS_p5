@@ -155,6 +155,13 @@ class UISystem {
         "  E+" + state.benchmarkLastEnemyReinforce,
         contentX, cy, contentW, 12
       );
+      if (game != null && game.benchmarkRuntime != null && game.benchmarkRuntime.isManualControlActive()) {
+        fill(255, 220, 120);
+        cy = uiWidgets.drawLineClamped(
+          "BENCH MANUAL  " + game.benchmarkRuntime.manualEndKey + " finish  remain " + nf(game.benchmarkRuntime.remainingSeconds(), 1, 1) + "s",
+          contentX, cy, contentW, 12
+        );
+      }
       fill(230);
     }
     if (state.selectedBuilding != null) {

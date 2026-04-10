@@ -12,6 +12,10 @@ class BenchmarkRuntime {
   String runId = "";
   String battleIntensity = "heavy";
   String troopProfile = "balanced";
+  boolean manualControl = false;
+  String manualEndKey = "F10";
+  boolean manualAutoFrontline = false;
+  boolean manualFinishRequested = false;
   float reinforceIntervalSec = -1;
   int reinforceCountPerFaction = -1;
   String outputCsv = "benchmarks/runtime_metrics.csv";
@@ -52,6 +56,12 @@ class BenchmarkRuntime {
     if (!"balanced".equals(troopProfile) && !"anti-armor".equals(troopProfile) && !"swarm".equals(troopProfile)) {
       troopProfile = "balanced";
     }
+    manualControl = root.getBoolean("manualControl", manualControl);
+    manualEndKey = root.getString("manualEndKey", manualEndKey);
+    if (manualEndKey == null || manualEndKey.length() <= 0) {
+      manualEndKey = "F10";
+    }
+    manualAutoFrontline = root.getBoolean("manualAutoFrontline", manualAutoFrontline);
     reinforceIntervalSec = root.getFloat("reinforceIntervalSec", reinforceIntervalSec);
     reinforceCountPerFaction = root.getInt("reinforceCountPerFaction", reinforceCountPerFaction);
     outputCsv = root.getString("outputCsv", outputCsv);
@@ -86,8 +96,18 @@ class BenchmarkRuntime {
       return;
     }
     elapsed += rawFrameMs / 1000.0;
-    driveCamera(engine.state, elapsed);
-    engine.state.sustainBenchmarkFrontline(rawFrameMs / 1000.0);
+    if (!manualControl) {
+      driveCamera(engine.state, elapsed);
+      engine.state.sustainBenchmarkFrontline(rawFrameMs / 1000.0);
+    } else {
+      if (manualAutoFrontline) {
+        // Optional: keep AI frontline pressure while still allowing manual player control.
+        engine.state.sustainBenchmarkFrontline(rawFrameMs / 1000.0);
+      } else {
+        // Default manual mode keeps reinforcement waves but avoids overriding player orders.
+        engine.state.updateBenchmarkReinforcementTimer(rawFrameMs / 1000.0);
+      }
+    }
 
     if (elapsed >= warmupSec) {
       frameMsSamples.add(rawFrameMs);
@@ -101,7 +121,7 @@ class BenchmarkRuntime {
       subsystemSamples++;
     }
 
-    if (elapsed >= durationSec) {
+    if (manualFinishRequested || elapsed >= durationSec) {
       writeResults(engine);
       finished = true;
       if (autoExit) {
@@ -178,10 +198,23 @@ class BenchmarkRuntime {
       nf(engine.state.benchmarkReinforceInterval, 1, 2) + "," +
       engine.state.benchmarkReinforceCount + "," +
       csv(engine.state.benchmarkTroopProfile) + "," +
-      csv("auto-runtime");
+      csv(manualControl ? "manual-runtime" : "auto-runtime");
     out.add(row);
     saveStrings(outputCsv, out.toArray(new String[0]));
     println("[BENCH-RUNTIME] wrote: " + outputCsv);
+  }
+
+  void requestManualFinish() {
+    if (!enabled || finished || !manualControl) return;
+    manualFinishRequested = true;
+  }
+
+  boolean isManualControlActive() {
+    return enabled && started && !finished && manualControl;
+  }
+
+  float remainingSeconds() {
+    return max(0, durationSec - elapsed);
   }
 
   void ensureParentDir(String path) {

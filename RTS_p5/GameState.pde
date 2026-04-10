@@ -438,13 +438,8 @@ class GameState {
 
   void sustainBenchmarkFrontline(float dt) {
     if (!benchmarkScenarioActive || map == null) return;
-    benchmarkReinforceTimer -= dt;
-    benchmarkReinforceFlashTimer = max(0, benchmarkReinforceFlashTimer - dt);
+    updateBenchmarkReinforcementTimer(dt);
     benchmarkOrderPulseTimer -= dt;
-    if (benchmarkReinforceTimer <= 0) {
-      benchmarkReinforceTimer = benchmarkReinforceInterval;
-      spawnBenchmarkReinforcements();
-    }
     if (benchmarkOrderPulseTimer > 0) return;
     benchmarkOrderPulseTimer = 1.2;
 
@@ -455,6 +450,16 @@ class GameState {
     if (benchmarkReinforceFlashTimer > 0) {
       refreshBenchmarkFactionPush(Faction.PLAYER, playerTarget);
       refreshBenchmarkFactionPush(Faction.ENEMY, enemyTarget);
+    }
+  }
+
+  void updateBenchmarkReinforcementTimer(float dt) {
+    if (!benchmarkScenarioActive || map == null) return;
+    benchmarkReinforceTimer -= dt;
+    benchmarkReinforceFlashTimer = max(0, benchmarkReinforceFlashTimer - dt);
+    if (benchmarkReinforceTimer <= 0) {
+      benchmarkReinforceTimer = benchmarkReinforceInterval;
+      spawnBenchmarkReinforcements();
     }
   }
 

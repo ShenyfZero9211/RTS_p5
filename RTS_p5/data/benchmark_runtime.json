@@ -8,6 +8,9 @@
   "runId": "",
   "battleIntensity": "heavy",
   "troopProfile": "balanced",
+  "manualControl": false,
+  "manualEndKey": "F10",
+  "manualAutoFrontline": false,
   "reinforceIntervalSec": -1,
   "reinforceCountPerFaction": -1,
   "outputCsv": "benchmarks/runtime_metrics.csv"

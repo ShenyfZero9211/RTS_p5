@@ -21,6 +21,12 @@ Optional params:
 powershell -ExecutionPolicy Bypass -File .\benchmark.ps1 -MapFile map_stress_template.json -RunTag ai-turtle -BattleIntensity extreme -TroopProfile anti-armor -ReinforceIntervalSec 6 -ReinforceCountPerFaction 18
 ```
 
+Manual control benchmark (script launched):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\benchmark.ps1 -RunTag manual-session -ManualControl -ManualEndKey F10 -ManualAutoFrontline -DurationSec 180 -WarmupSec 10 -BattleIntensity heavy -TroopProfile balanced
+```
+
 Matrix run (all AI profiles):
 
 ```powershell
@@ -62,11 +68,15 @@ powershell -ExecutionPolicy Bypass -File .\benchmark-compare.ps1 -LegacyBuildLog
 - Creates a markdown run sheet for manual runtime metrics
 - `BattleIntensity` supports: `medium`, `heavy`, `extreme`
 - `TroopProfile` supports: `balanced`, `anti-armor`, `swarm`
+- Manual mode supports `-ManualControl` and `-ManualEndKey` (default `F10`)
+- `-ManualAutoFrontline` optionally keeps AI mutual push enabled during manual mode
 - Reinforcement waves can be overridden with `-ReinforceIntervalSec` and `-ReinforceCountPerFaction`
 - `benchmark-compare.ps1` now groups by scenario key: `profile|intensity|reinforce_interval|reinforce_count|troop_profile`
 - `benchmark-matrix.ps1` supports profile × intensity matrix output
 - `benchmark-viz.ps1` generates a markdown visual report from runtime CSV
 - `tools/benchmark_dashboard.py` generates an interactive Plotly HTML dashboard
+- In manual mode, benchmark ends on `F10` or when duration expires, then appends one runtime row
+- In manual mode without `-ManualAutoFrontline`, only reinforcement waves are auto-driven (player orders are not overridden)
 
 ## Suggested Regression Gate
 - Build must pass
