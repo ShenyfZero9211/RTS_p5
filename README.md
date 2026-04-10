@@ -2,6 +2,8 @@
 
 A Processing-based RTS prototype inspired by classic games (StarCraft / Red Alert), with a refactored `GameEngine` architecture, configurable benchmark tooling, and scriptable performance workflows.
 
+**Current release:** [v0.2.9](https://github.com/ShenyfZero9211/RTS_p5/releases/tag/v0.2.9)
+
 ![RTS gameplay showcase](assets/screenshots/benchmark-manual-session.png)
 
 ## Highlights
@@ -19,6 +21,7 @@ A Processing-based RTS prototype inspired by classic games (StarCraft / Red Aler
   - `-ManualControl`
   - `-ManualEndKey`
   - `-ManualAutoFrontline`
+- **RTS Map Editor** (separate Processing sketch under `map_editor/`): edit terrain, spawns, mines, initial buildings/units; validation; `Ctrl+R` writes to `RTS_p5/data/map_test.json` for a quick in-game check.
 
 ## Repository Layout
 
@@ -29,8 +32,10 @@ A Processing-based RTS prototype inspired by classic games (StarCraft / Red Aler
   - subsystem files (`EnemyAiController.pde`, `CombatSystem.pde`, `ProductionSystem.pde`, `FogSystem.pde`, `UISystem.pde`, etc.)
   - `data/` - game configs, map files, runtime settings
   - `benchmarks/runtime_metrics.csv` - runtime benchmark metrics
+- `map_editor/` - map editor sketch (`map_editor.pde` + editor modules)
 - root scripts
   - `build.ps1` - build sketch through Processing CLI
+  - `map-editor.ps1` - run the map editor (`cli --run`)
   - `smoke.ps1` - lightweight build smoke check
   - `benchmark.ps1` - single benchmark run
   - `benchmark-matrix.ps1` - profile x intensity batch benchmark
@@ -38,6 +43,8 @@ A Processing-based RTS prototype inspired by classic games (StarCraft / Red Aler
   - `benchmark-viz.ps1` - markdown visual report generation
 - `tools/benchmark_dashboard.py` - interactive HTML dashboard generator
 - `docs/benchmark_workflow.md` - benchmark usage guide
+- `docs/processing_ai_handoff.md` - this repo: scripts, sketches, AI handoff
+- `docs/processing_project_playbook.md` - general Processing + `.ps1` + `.md` playbook
 
 ## Requirements
 
@@ -55,6 +62,14 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 Default output:
 
 - `_cli_build_out`
+
+## Map editor
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\map-editor.ps1
+```
+
+Uses the same default Processing path as `build.ps1`; override with `-ProcessingExe` and `-SketchDir` if needed. **Pan:** middle mouse or **Space + left drag**. **Zoom:** mouse wheel (same convention as in-game camera). See `docs/processing_ai_handoff.md` for details.
 
 ## Run Benchmarks
 
@@ -118,4 +133,15 @@ python .\tools\benchmark_dashboard.py
 - Keep generated benchmark artifacts in `benchmarks/` out of feature commits unless explicitly needed.
 - For benchmark workflow details, read:
   - `docs/benchmark_workflow.md`
+- For AI-assisted Processing workflow (scripts, handoff, verification), read:
+  - `docs/processing_ai_handoff.md`
+  - `docs/processing_project_playbook.md` (generic template)
+
+## Changelog (recent)
+
+### v0.2.9
+
+- Map editor sketch (`map_editor/`) with terrain brush, spawns, mines, buildings/units, validation, and save/load against `RTS_p5/data` JSON maps.
+- `map-editor.ps1` launcher; editor viewport uses top-left camera convention and zoom range aligned with `Camera.pde` (wheel zoom toward cursor).
+- Docs: `docs/processing_ai_handoff.md`, `docs/processing_project_playbook.md`.
 

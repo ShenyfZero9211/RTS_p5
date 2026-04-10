@@ -4,3 +4,4 @@
 Thumbs.db
 *.log
 _cli_build_out/
+_cli_build_out_editor/
