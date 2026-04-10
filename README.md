@@ -2,6 +2,8 @@
 
 A Processing-based RTS prototype inspired by classic games (StarCraft / Red Alert), with a refactored `GameEngine` architecture, configurable benchmark tooling, and scriptable performance workflows.
 
+![RTS gameplay showcase](assets/screenshots/benchmark-manual-session.png)
+
 ## Highlights
 
 - Fullscreen RTS prototype built with Processing 4 CLI.
