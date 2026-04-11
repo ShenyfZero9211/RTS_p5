@@ -13,5 +13,5 @@
   "manualAutoFrontline": false,
   "reinforceIntervalSec": -1,
   "reinforceCountPerFaction": -1,
-  "outputCsv": "benchmarks/runtime_metrics.csv"
+  "outputCsv": "../benchmarks/runtime_metrics.csv"
 }

@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 if ([string]::IsNullOrWhiteSpace($CsvPath)) {
-  $CsvPath = Join-Path $ProjectRoot "RTS_p5\benchmarks\runtime_metrics.csv"
+  $CsvPath = Join-Path $ProjectRoot "benchmarks\runtime_metrics.csv"
 }
 if (!(Test-Path $CsvPath)) {
   throw "Runtime CSV not found: $CsvPath"

@@ -18,7 +18,7 @@ class BenchmarkRuntime {
   boolean manualFinishRequested = false;
   float reinforceIntervalSec = -1;
   int reinforceCountPerFaction = -1;
-  String outputCsv = "benchmarks/runtime_metrics.csv";
+  String outputCsv = "../benchmarks/runtime_metrics.csv";
   boolean started = false;
   boolean finished = false;
   float elapsed = 0;

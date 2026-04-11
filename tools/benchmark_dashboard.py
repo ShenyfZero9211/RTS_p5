@@ -207,7 +207,7 @@ def main():
     args = parser.parse_args()
 
     project_root = Path(args.project_root)
-    csv_path = Path(args.csv_path) if args.csv_path else (project_root / "RTS_p5" / "benchmarks" / "runtime_metrics.csv")
+    csv_path = Path(args.csv_path) if args.csv_path else (project_root / "benchmarks" / "runtime_metrics.csv")
     if not csv_path.exists():
         raise SystemExit(f"CSV not found: {csv_path}")
 

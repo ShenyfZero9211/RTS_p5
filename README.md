@@ -31,7 +31,7 @@ A Processing-based RTS prototype inspired by classic games (StarCraft / Red Aler
   - `GameState.pde` - gameplay state and subsystem coordination
   - subsystem files (`EnemyAiController.pde`, `CombatSystem.pde`, `ProductionSystem.pde`, `FogSystem.pde`, `UISystem.pde`, etc.)
   - `data/` - game configs, map files, runtime settings
-  - `benchmarks/runtime_metrics.csv` - runtime benchmark metrics
+- `benchmarks/` - **local only** (listed in `.gitignore`): runtime CSV, benchmark logs, matrix/compare/visual reports, HTML dashboards, `runs/` sheets. Written by `BenchmarkRuntime` (path `../benchmarks/...` from the sketch) and root `benchmark*.ps1` scripts.
 - `map_editor/` - map editor sketch (`map_editor.pde` + editor modules)
 - root scripts
   - `build.ps1` - build sketch through Processing CLI
@@ -113,7 +113,7 @@ python .\tools\benchmark_dashboard.py
 
 ## Benchmark Data Notes
 
-- Runtime CSV path: `RTS_p5/benchmarks/runtime_metrics.csv`
+- Runtime CSV path: `benchmarks/runtime_metrics.csv` (repository root; not committed)
 - Grouped comparison key:
   - `enemy_ai_profile | battle_intensity | reinforce_interval_sec | reinforce_count_per_faction | troop_profile`
 - Legacy/mixed CSV compatibility is handled in compare script with fallbacks (`unknown/default`).
@@ -130,11 +130,13 @@ python .\tools\benchmark_dashboard.py
 
 ## Development Tips
 
-- Keep generated benchmark artifacts in `benchmarks/` out of feature commits unless explicitly needed.
+- The whole `benchmarks/` directory is **gitignored**; benchmark outputs stay on your machine only.
 - For benchmark workflow details, read:
   - `docs/benchmark_workflow.md`
 - For AI-assisted Processing workflow (scripts, handoff, verification), read:
   - `docs/processing_ai_handoff.md`
+- For per-script and tool reference (with diagrams), read:
+  - `docs/scripts_and_tools_reference.md`
   - `docs/processing_project_playbook.md` (generic template)
 
 ## Changelog (recent)

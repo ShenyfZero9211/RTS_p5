@@ -28,7 +28,7 @@ $buildScript = Join-Path $ProjectRoot "build.ps1"
 $benchDir = Join-Path $ProjectRoot "benchmarks"
 $runDir = Join-Path $benchDir "runs"
 $csvPath = Join-Path $benchDir "benchmark_log.csv"
-$runtimeCsvPath = Join-Path $sketchDir "benchmarks\runtime_metrics.csv"
+$runtimeCsvPath = Join-Path $benchDir "runtime_metrics.csv"
 $runtimeCfgPath = Join-Path $dataDir "benchmark_runtime.json"
 $runtimeCfgBackup = Join-Path $dataDir "benchmark_runtime.benchmark_backup.json"
 
@@ -71,7 +71,7 @@ try {
     manualAutoFrontline = $ManualAutoFrontline.IsPresent
     reinforceIntervalSec = $ReinforceIntervalSec
     reinforceCountPerFaction = $ReinforceCountPerFaction
-    outputCsv = "benchmarks/runtime_metrics.csv"
+    outputCsv = "../benchmarks/runtime_metrics.csv"
   }
   ($runtimeCfg | ConvertTo-Json -Depth 8) | Out-File -FilePath $runtimeCfgPath -Encoding UTF8
 
@@ -173,7 +173,7 @@ finally {
       manualAutoFrontline = $false
       reinforceIntervalSec = -1
       reinforceCountPerFaction = -1
-      outputCsv = "benchmarks/runtime_metrics.csv"
+      outputCsv = "../benchmarks/runtime_metrics.csv"
     }
     ($offCfg | ConvertTo-Json -Depth 8) | Out-File -FilePath $runtimeCfgPath -Encoding UTF8
   }

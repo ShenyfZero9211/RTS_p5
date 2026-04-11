@@ -6,7 +6,7 @@ Use this workflow for Phase B performance regression checks.
 - Stress map template: `RTS_p5/data/map_stress_template.json`
 - Benchmark script: `benchmark.ps1`
 - Output CSV: `benchmarks/benchmark_log.csv`
-- Runtime metrics CSV: `RTS_p5/benchmarks/runtime_metrics.csv`
+- Runtime metrics CSV: `benchmarks/runtime_metrics.csv` (repo root; gitignored)
 - Per-run report: `benchmarks/runs/<timestamp>-<tag>.md`
 
 ## Run
@@ -64,7 +64,7 @@ powershell -ExecutionPolicy Bypass -File .\benchmark-compare.ps1 -LegacyBuildLog
 - Launches game with `processing cli --run`, waits for runtime metrics row append
 - Restores original `data/map_test.json`
 - Appends one row to `benchmarks/benchmark_log.csv`
-- Appends one runtime row to `RTS_p5/benchmarks/runtime_metrics.csv`
+- Appends one runtime row to `benchmarks/runtime_metrics.csv`
 - Creates a markdown run sheet for manual runtime metrics
 - `BattleIntensity` supports: `medium`, `heavy`, `extreme`
 - `TroopProfile` supports: `balanced`, `anti-armor`, `swarm`

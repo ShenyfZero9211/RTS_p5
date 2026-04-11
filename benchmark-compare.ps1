@@ -11,7 +11,7 @@ if ([string]::IsNullOrWhiteSpace($CsvPath)) {
   if ($LegacyBuildLog) {
     $CsvPath = Join-Path $ProjectRoot "benchmarks\benchmark_log.csv"
   } else {
-    $CsvPath = Join-Path $ProjectRoot "RTS_p5\benchmarks\runtime_metrics.csv"
+    $CsvPath = Join-Path $ProjectRoot "benchmarks\runtime_metrics.csv"
   }
 }
 if (!(Test-Path $CsvPath)) {

@@ -79,7 +79,7 @@ powershell -ExecutionPolicy Bypass -File .\map-editor.ps1 -ProcessingExe "C:\Pat
 - **草图路径错误**：CLI 的 `--sketch=` 必须指向**文件夹**，且该文件夹名与主 `.pde` 同名。
 - **资源路径**：`data/` 下资源相对草图目录解析；多草图时注意改的是哪一个草图下的 `data/`。
 - **仅 Windows 脚本**：当前 `.ps1` 面向 PowerShell；其它系统需自行对照 CLI 参数等价调用。
-- **基准产物**：`benchmarks/` 下大量生成物通常不必进功能提交，见 `README.md` 开发提示。
+- **基准产物**：仓库根目录 `benchmarks/` 已在 `.gitignore` 中，不会进入版本库；跑分后仅保留在本地。
 
 ## 与 Cursor / 规则文件的衔接（可选）
 

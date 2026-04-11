@@ -22,7 +22,7 @@ $dashboardScript = Join-Path $ProjectRoot "tools\benchmark_dashboard.py"
 $uiPath = Join-Path $ProjectRoot "RTS_p5\data\ui.json"
 $backupUiPath = Join-Path $ProjectRoot "RTS_p5\data\ui.matrix_backup.json"
 $summaryDir = Join-Path $ProjectRoot "benchmarks"
-$runtimeCsv = Join-Path $ProjectRoot "RTS_p5\benchmarks\runtime_metrics.csv"
+$runtimeCsv = Join-Path $ProjectRoot "benchmarks\runtime_metrics.csv"
 
 if (!(Test-Path $benchScript)) { throw "benchmark.ps1 not found: $benchScript" }
 if (!(Test-Path $uiPath)) { throw "ui.json not found: $uiPath" }
@@ -109,7 +109,7 @@ $content += "- Map: $MapFile"
 $content += "- Profiles: " + ($normalizedProfiles -join ", ")
 $content += "- Intensities: " + ($normalizedIntensities -join ", ")
 $content += "- TroopProfile: $TroopProfile"
-$content += "- Runtime CSV: RTS_p5/benchmarks/runtime_metrics.csv"
+$content += "- Runtime CSV: benchmarks/runtime_metrics.csv"
 $content += ""
 $content += "## Run Summary"
 $content += "| profile | intensity | result | run_tag |"
