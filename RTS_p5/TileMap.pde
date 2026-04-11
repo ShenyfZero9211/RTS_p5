@@ -5,6 +5,8 @@ class TileMap {
   int[][] terrain;
   boolean[][] blocked;
   boolean disableStaticObstacles = false;
+  /** When true, engine runs demo/base seed; when false, only JSON initialBuildings/units. */
+  boolean testMap = true;
 
   boolean loadFromJson(String fileName) {
     JSONObject root = loadJSONObject(fileName);
@@ -17,6 +19,7 @@ class TileMap {
     heightTiles = root.getInt("height");
 
     disableStaticObstacles = root.getBoolean("disableStaticObstacles", false);
+    testMap = root.getBoolean("testMap", true);
     terrain = new int[heightTiles][widthTiles];
     blocked = new boolean[heightTiles][widthTiles];
     JSONArray rows = root.getJSONArray("rows");

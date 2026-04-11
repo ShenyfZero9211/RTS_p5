@@ -2,6 +2,7 @@ class FogSystem {
   boolean[][] explored;
   boolean[][] visible;
   boolean[][] visibleWork;
+  float[][] fogDisplayAlpha;
   float updateTimer = 0;
   boolean rebuilding = false;
   int rebuildCursor = 0;
@@ -16,6 +17,7 @@ class FogSystem {
     explored = new boolean[map.heightTiles][map.widthTiles];
     visible = new boolean[map.heightTiles][map.widthTiles];
     visibleWork = new boolean[map.heightTiles][map.widthTiles];
+    fogDisplayAlpha = new float[map.heightTiles][map.widthTiles];
   }
 
   void update(float dt, GameState gs) {
@@ -169,6 +171,55 @@ class FogSystem {
     }
   }
 
+  float computeTargetFogAlpha(int tx, int ty, GameState gs) {
+    if (!explored[ty][tx]) {
+      return gs.fogUnexploredAlpha;
+    }
+    if (!visible[ty][tx]) {
+      float a = gs.fogExploredAlpha;
+      if (gs.fogSoftEdges) {
+        a *= edgeFadeFactor(tx, ty, gs.map, gs.fogEdgeRadius, gs.fogEdgeStrength);
+      }
+      return a;
+    }
+    return 0;
+  }
+
+  /** Snap visual fog to logical targets (call after creating FogSystem so the first frame is not a fade-in from zero). */
+  void syncDisplayToTargets(GameState gs) {
+    TileMap map = gs.map;
+    for (int ty = 0; ty < map.heightTiles; ty++) {
+      for (int tx = 0; tx < map.widthTiles; tx++) {
+        fogDisplayAlpha[ty][tx] = computeTargetFogAlpha(tx, ty, gs);
+      }
+    }
+  }
+
+  void updateDisplayBlend(float dt, GameState gs) {
+    if (!gs.fogEnabled) {
+      return;
+    }
+    TileMap map = gs.map;
+    float k = max(0.01, gs.fogTransitionSpeed);
+    float blend = 1 - exp(-dt * k);
+    for (int ty = 0; ty < map.heightTiles; ty++) {
+      for (int tx = 0; tx < map.widthTiles; tx++) {
+        float target = computeTargetFogAlpha(tx, ty, gs);
+        // Black or gray -> visible: hard cut (no fade to clear).
+        if (target <= 0.001f) {
+          fogDisplayAlpha[ty][tx] = 0;
+        } else {
+          float cur = fogDisplayAlpha[ty][tx];
+          fogDisplayAlpha[ty][tx] = cur + (target - cur) * blend;
+        }
+      }
+    }
+  }
+
+  int displayAlphaInt(int tx, int ty) {
+    return constrain(round(fogDisplayAlpha[ty][tx]), 0, 255);
+  }
+
   void renderOverlay(GameState gs) {
     if (!gs.fogEnabled) {
       return;
@@ -183,15 +234,7 @@ class FogSystem {
     noStroke();
     for (int ty = startY; ty <= endY; ty++) {
       for (int tx = startX; tx <= endX; tx++) {
-        int alpha = -1;
-        if (!explored[ty][tx]) {
-          alpha = gs.fogUnexploredAlpha;
-        } else if (!visible[ty][tx]) {
-          alpha = gs.fogExploredAlpha;
-          if (gs.fogSoftEdges) {
-            alpha = int(alpha * edgeFadeFactor(tx, ty, gs.map, gs.fogEdgeRadius, gs.fogEdgeStrength));
-          }
-        }
+        int alpha = displayAlphaInt(tx, ty);
         if (alpha <= 0) {
           continue;
         }

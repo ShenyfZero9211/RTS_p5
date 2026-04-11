@@ -75,6 +75,8 @@ class EditorState {
   int mapHeight = 48;
   int tileSize = 40;
   boolean disableStaticObstacles = false;
+  /** When true, RTS engine spawns demo bases/units; when false, only JSON initialBuildings/units. */
+  boolean testMap = true;
   int[][] terrain;
   JSONObject unknownFields = new JSONObject();
 

@@ -113,6 +113,7 @@ class EditorIO {
     root.setInt("width", s.mapWidth);
     root.setInt("height", s.mapHeight);
     root.setBoolean("disableStaticObstacles", s.disableStaticObstacles);
+    root.setBoolean("testMap", s.testMap);
 
     JSONObject legend = new JSONObject();
     legend.setString(".", "sand - walkable open ground");
@@ -213,6 +214,7 @@ class EditorIO {
     int ts = root.getInt("tileSize", 40);
     s.initDefaults(w, h, ts);
     s.disableStaticObstacles = root.getBoolean("disableStaticObstacles", false);
+    s.testMap = root.getBoolean("testMap", true);
 
     JSONArray rows = root.getJSONArray("rows");
     if (rows != null) {

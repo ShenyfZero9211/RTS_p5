@@ -73,17 +73,7 @@ class Minimap {
       noStroke();
       for (int ty = 0; ty < map.heightTiles; ty += step) {
         for (int tx = 0; tx < map.widthTiles; tx += step) {
-          float wx = (tx + 0.5) * map.tileSize;
-          float wy = (ty + 0.5) * map.tileSize;
-          int alpha = -1;
-          if (!gs.fog.isWorldExplored(map, wx, wy)) {
-            alpha = gs.fogUnexploredAlpha;
-          } else if (!gs.fog.isWorldVisible(map, wx, wy)) {
-            alpha = gs.fogExploredAlpha;
-            if (gs.fogSoftEdges) {
-              alpha = int(alpha * gs.fog.edgeFadeFactor(tx, ty, map, gs.fogEdgeRadius, gs.fogEdgeStrength));
-            }
-          }
+          int alpha = gs.fog.displayAlphaInt(tx, ty);
           if (alpha <= 0) {
             continue;
           }

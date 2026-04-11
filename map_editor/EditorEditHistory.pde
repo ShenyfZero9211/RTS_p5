@@ -6,6 +6,7 @@ class EditorMapSnapshot {
   int mapH;
   int tileSize;
   boolean disableStaticObstacles;
+  boolean testMap;
   int[][] terrain;
   ArrayList<EditorMine> mines = new ArrayList<EditorMine>();
   ArrayList<EditorSpawn> spawns = new ArrayList<EditorSpawn>();
@@ -18,6 +19,7 @@ class EditorMapSnapshot {
     mapH = s.mapHeight;
     tileSize = s.tileSize;
     disableStaticObstacles = s.disableStaticObstacles;
+    testMap = s.testMap;
     terrain = new int[mapH][mapW];
     for (int y = 0; y < mapH; y++) {
       for (int x = 0; x < mapW; x++) {
@@ -43,6 +45,7 @@ class EditorMapSnapshot {
     s.mapHeight = mapH;
     s.tileSize = tileSize;
     s.disableStaticObstacles = disableStaticObstacles;
+    s.testMap = testMap;
     s.terrain = new int[mapH][mapW];
     for (int y = 0; y < mapH; y++) {
       for (int x = 0; x < mapW; x++) {

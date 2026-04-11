@@ -513,7 +513,7 @@ class EditorUI {
       }
     }
     if (chromePalette.tryMinimapClick(s, chromeMinimap, mx, my, button)) return;
-    if (chromePalette.mousePressed(s, mx, my, button)) return;
+    if (chromePalette.mousePressed(s, mx, my, button, editHistory)) return;
 
     if (!inWorldViewport(mx, my)) return;
     if (button == CENTER || (button == LEFT && panModifierKeys())) {

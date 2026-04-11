@@ -1,5 +1,6 @@
 {
   "disableStaticObstacles": true,
+  "testMap": true,
   "legend": {
     "R": "rock - walkable rough terrain",
     "B": "block - impassable obstacle",

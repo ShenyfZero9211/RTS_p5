@@ -104,6 +104,16 @@ flowchart LR
 | **关键参数** | `-ProcessingExe`、`-SketchDir`（默认指向 `map_editor`） |
 | **典型场景** | 编辑地图 JSON、与主游戏 `data/` 地图管线配合调试 |
 
+主游戏读取的地图 JSON（`RTS_p5/data/map_*.json`）中与引擎行为相关的字段补充：
+
+| 字段 | 说明 |
+|------|------|
+| **`testMap`** | 布尔，默认 **`true`**。为 **`true`** 时，开局由引擎按内置规则自动放置演示基地、矿、仓库、兵营及默认单位（与历史行为一致）。为 **`false`** 时，**不**执行该演示初始化，仅从 **`initialBuildings`** 与 **`initialUnits`**（及 **`goldMines`** 等）生成实体；需在编辑器中自行摆好建筑与单位。 |
+| **`initialBuildings`** | 初始建筑列表（格坐标 `x`/`y`、阵营、`type`）；在 **`testMap: false`** 时由引擎消费。 |
+| **`initialUnits`** | 初始单位（世界坐标或格坐标）；两种模式下引擎均可用于生成单位（测试地图下若列表非空则替代默认小队）。 |
+
+编辑器侧可在「新地图」对话框或右侧面板切换 **测试地图**，对应写入 **`testMap`**。
+
 ---
 
 ### 3.4 `benchmark.ps1`

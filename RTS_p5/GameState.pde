@@ -21,6 +21,8 @@ class GameState {
   float fogUpdateBudgetMs = 2.5;
   int fogUnexploredAlpha = 220;
   int fogExploredAlpha = 120;
+  /** Higher = faster fog overlay blend toward logical targets (1/s time constant scale). */
+  float fogTransitionSpeed = 11;
 
   TileMap map;
   Camera camera;
@@ -182,6 +184,7 @@ class GameState {
     camera.wheelZoomStep = wheelZoomStep;
     camera.speed = edgeScrollSpeed;
     fog = new FogSystem(map);
+    fog.syncDisplayToTargets(this);
     loadDefinitions();
     buildSystem = new BuildSystem(buildingDefs);
     resources = new ResourcePool(playerStartCredits, creditCapForFaction(Faction.PLAYER));
@@ -189,7 +192,12 @@ class GameState {
     pathfinder = new Pathfinder(map);
     enemyAi = new EnemyAiController();
 
-    seedDemoEntities();
+    if (map.testMap) {
+      seedDemoEntities();
+    } else {
+      spawnInitialBuildingsFromMapJson();
+      spawnInitialUnitsFromMapJson();
+    }
     refreshFactionCaps();
     ui.clearBuildButtonState();
     return true;
@@ -252,6 +260,42 @@ class GameState {
       spawnInitialUnitNear(enemyBasePos, Faction.ENEMY, miner, -3.8f, -3.8f);
       spawnInitialUnitNear(enemyBasePos, Faction.ENEMY, rifle, -4.6f, -4.3f);
       spawnInitialUnitNear(enemyBasePos, Faction.ENEMY, rocket, -5.5f, -5.1f);
+    }
+  }
+
+  /** Spawn buildings from map JSON `initialBuildings` at exact tile origins (non-test maps). */
+  void spawnInitialBuildingsFromMapJson() {
+    JSONObject root = loadJSONObject(defaultMapJson);
+    if (root == null) {
+      return;
+    }
+    JSONArray arr = root.getJSONArray("initialBuildings");
+    if (arr == null || arr.size() <= 0) {
+      return;
+    }
+    float ts = map.tileSize;
+    for (int i = 0; i < arr.size(); i++) {
+      JSONObject o = arr.getJSONObject(i);
+      String type = o.getString("type", "");
+      String fid = o.getString("faction", "player");
+      Faction fac = "enemy".equals(fid) ? Faction.ENEMY : Faction.PLAYER;
+      BuildingDef def = getBuildingDef(type);
+      if (def == null) {
+        continue;
+      }
+      int tx = o.getInt("x", -1);
+      int ty = o.getInt("y", -1);
+      if (tx < 0 || ty < 0 || tx >= map.widthTiles || ty >= map.heightTiles) {
+        continue;
+      }
+      if (!canPlaceBuildingFootprint(def, tx, ty, 0)) {
+        println("spawnInitialBuildingsFromMapJson: skipped " + type + " at tile " + tx + "," + ty);
+        continue;
+      }
+      Building b = new Building(tx * ts, ty * ts, def.tileW, def.tileH, fac, def);
+      b.completed = true;
+      b.buildProgress = b.buildTime;
+      buildings.add(b);
     }
   }
 
@@ -791,6 +835,7 @@ class GameState {
     int tFog = millis();
     if (fog != null) {
       fog.update(dt, this);
+      fog.updateDisplayBlend(dt, this);
     }
     profileFogMs = lerp(profileFogMs, millis() - tFog, 0.15);
     int tCombat = millis();

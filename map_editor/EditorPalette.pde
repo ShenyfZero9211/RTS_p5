@@ -10,7 +10,7 @@ class EditorPalette {
   static final int META_LINE_H = 22;
   /** Minimap block + meta lines + padding below meta (before scroll list). */
   int headerTotal(EditorState s) {
-    int metaLines = s.activeTool == EditorToolType.TOOL_UNIT ? 5 : 4;
+    int metaLines = 5 + (s.activeTool == EditorToolType.TOOL_UNIT ? 1 : 0);
     return MM_PAD_TOP + PALETTE_MINIMAP_H + META_AFTER_MM + metaLines * META_LINE_H + 12;
   }
   static final int FOOTER_VALIDATION_SCROLL_H = 100;
@@ -99,15 +99,22 @@ class EditorPalette {
     return mx >= x0 + 8 && mx < x0 + pw - 8 && my >= top && my < top + FOOTER_VALIDATION_SCROLL_H;
   }
 
-  boolean hoverUnitSnapToggle(EditorState s, int mx, int my) {
-    if (s.activeTool != EditorToolType.TOOL_UNIT) return false;
+  boolean hoverTestMapToggle(EditorState s, int mx, int my) {
     int x0 = s.paletteLeftPx();
     int lineY = metaStartY() + 4 * META_LINE_H;
     return mx >= x0 + MM_SIDE && mx < x0 + EditorState.PALETTE_W - MM_SIDE && my >= lineY && my < lineY + META_LINE_H;
   }
 
+  boolean hoverUnitSnapToggle(EditorState s, int mx, int my) {
+    if (s.activeTool != EditorToolType.TOOL_UNIT) return false;
+    int x0 = s.paletteLeftPx();
+    int lineY = metaStartY() + 5 * META_LINE_H;
+    return mx >= x0 + MM_SIDE && mx < x0 + EditorState.PALETTE_W - MM_SIDE && my >= lineY && my < lineY + META_LINE_H;
+  }
+
   boolean hoverAny(EditorState s, int mx, int my, EditorValidationResult vr) {
     return minimapContains(s, mx, my) || hoverListRow(s, mx, my) >= 0
+      || hoverTestMapToggle(s, mx, my)
       || hoverUnitSnapToggle(s, mx, my)
       || hoverValidationErrors(s, mx, my, vr);
   }
@@ -138,6 +145,10 @@ class EditorPalette {
     myMeta += META_LINE_H;
     fill(205, 215, 230);
     text("Zoom: " + nf(s.zoom, 1, 2), x0 + MM_SIDE, myMeta);
+    myMeta += META_LINE_H;
+    boolean hTest = hoverTestMapToggle(s, mx, my);
+    fill(hTest ? 220 : 175, hTest ? 235 : 195, 250);
+    text("Test map (engine auto-init): " + (s.testMap ? "ON" : "OFF") + "  (click)", x0 + MM_SIDE, myMeta);
     myMeta += META_LINE_H;
     if (s.activeTool == EditorToolType.TOOL_UNIT) {
       boolean hSnap = hoverUnitSnapToggle(s, mx, my);
@@ -301,7 +312,15 @@ class EditorPalette {
     return true;
   }
 
-  boolean mousePressed(EditorState s, int mx, int my, int button) {
+  boolean mousePressed(EditorState s, int mx, int my, int button, EditorEditHistory editHistory) {
+    if (button == LEFT && hoverTestMapToggle(s, mx, my)) {
+      if (editHistory != null) {
+        editHistory.pushBeforeChange(s);
+      }
+      s.testMap = !s.testMap;
+      s.setStatus(s.testMap ? "Test map: engine will auto-place demo bases/units." : "Custom map: engine uses only JSON initial buildings/units.");
+      return true;
+    }
     if (button == LEFT && hoverUnitSnapToggle(s, mx, my)) {
       s.unitSnapToGrid = !s.unitSnapToGrid;
       s.setStatus(s.unitSnapToGrid ? "Unit placement: snap to tile centers." : "Unit placement: free (no overlap).");
