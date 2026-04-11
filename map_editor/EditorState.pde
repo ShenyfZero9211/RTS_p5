@@ -1,3 +1,8 @@
+enum EditorInteractionMode {
+  MODE_SELECT,
+  MODE_PLACE
+}
+
 enum EditorToolType {
   TOOL_SELECT,
   TOOL_TERRAIN_SAND,
@@ -46,12 +51,22 @@ class EditorPlacedBuilding {
 class EditorPlacedUnit {
   String faction;
   String type;
-  int tx, ty;
-  EditorPlacedUnit(String faction, String type, int tx, int ty) {
+  /** World pixel center (matches runtime Unit position). */
+  float worldCX;
+  float worldCY;
+  EditorPlacedUnit(String faction, String type, float worldCX, float worldCY) {
     this.faction = faction;
     this.type = type;
-    this.tx = tx;
-    this.ty = ty;
+    this.worldCX = worldCX;
+    this.worldCY = worldCY;
+  }
+
+  int centerTileX(EditorState s) {
+    return constrain((int)floor(worldCX / s.tileSize), 0, s.mapWidth - 1);
+  }
+
+  int centerTileY(EditorState s) {
+    return constrain((int)floor(worldCY / s.tileSize), 0, s.mapHeight - 1);
   }
 }
 
@@ -69,17 +84,40 @@ class EditorState {
   ArrayList<EditorPlacedUnit> initialUnits = new ArrayList<EditorPlacedUnit>();
 
   HashMap<String, int[]> buildingSizeById = new HashMap<String, int[]>();
+  HashMap<String, Float> unitRadiusById = new HashMap<String, Float>();
   ArrayList<String> buildingIds = new ArrayList<String>();
   ArrayList<String> unitIds = new ArrayList<String>();
+  /** When true (default), unit tool snaps to tile centers; when false, free placement with overlap checks. */
+  boolean unitSnapToGrid = true;
 
   EditorToolType activeTool = EditorToolType.TOOL_TERRAIN_SAND;
+  EditorInteractionMode interactionMode = EditorInteractionMode.MODE_PLACE;
+  /** When set, Save targets this path; otherwise dataDir + currentMapFile. */
+  String loadedMapAbsolutePath = "";
+  /**
+   * After New (or fresh session with no loaded file), Save must use Save As first.
+   * Set true after a successful Load or Save / Save As to disk.
+   */
+  boolean allowDirectSave = false;
+  /** Brush level 1..9; tile span from brushFootprintSide() (1,2,3,4,5,6,8,10,10). */
   int brushSize = 1;
   /** Matches RTS_p5 Camera: 1 screen pixel : 1/zoom world pixels at default. */
   float zoom = 1.0;
   /** Top-left of visible world in world pixels (same convention as Camera.x / Camera.y). */
   float camX = 0;
   float camY = 0;
-  int sidePanelW = 360;
+  /** Full-width top menu bar height (pixels). */
+  static final int MENU_BAR_H = 40;
+  /** Left tool rail width (pixels); room for brush footprint preview. */
+  static final int TOOLBAR_W = 112;
+  /** Right palette + info column width (pixels). */
+  static final int PALETTE_W = 320;
+  /** "player" or "enemy" for building/unit placement tools. */
+  String placementFaction = "player";
+  /** Vertical scroll for building/unit list in the palette (pixels). */
+  int paletteListScroll = 0;
+  /** Vertical scroll for validation error list in the palette footer (pixels). */
+  int paletteValidationScroll = 0;
 
   static final float GAME_MIN_ZOOM = 0.6;
   static final float GAME_MAX_ZOOM = 2.2;
@@ -106,13 +144,59 @@ class EditorState {
     initialUnits.clear();
     selectedObjectType = "";
     selectedObjectIndex = -1;
+    placementFaction = "player";
+    paletteListScroll = 0;
+    paletteValidationScroll = 0;
+    loadedMapAbsolutePath = "";
+    allowDirectSave = false;
     resetWorldView();
+  }
+
+  /** Discrete terrain brush width/height in tiles for the current {@link #brushSize} level. */
+  int brushFootprintSide() {
+    int[] sides = new int[] { 1, 2, 3, 4, 5, 6, 8, 10, 10 };
+    int idx = constrain(brushSize, 1, sides.length) - 1;
+    return sides[idx];
   }
 
   void resetWorldView() {
     camX = 0;
     camY = 0;
     zoom = 1.0;
+  }
+
+  int mapViewTopPx() {
+    return MENU_BAR_H;
+  }
+
+  int mapViewLeftPx() {
+    return TOOLBAR_W;
+  }
+
+  int mapViewRightPx() {
+    return width - PALETTE_W;
+  }
+
+  int mapViewWidthPx() {
+    return max(1, mapViewRightPx() - mapViewLeftPx());
+  }
+
+  int mapViewHeightPx() {
+    return max(1, height - MENU_BAR_H);
+  }
+
+  int paletteLeftPx() {
+    return width - PALETTE_W;
+  }
+
+  /** Visible world width in pixels (matches game camera convention). */
+  float editorVisibleWorldW(int viewW) {
+    return viewW / max(0.001, zoom);
+  }
+
+  /** Visible world height in pixels. */
+  float editorVisibleWorldH(int viewH) {
+    return viewH / max(0.001, zoom);
   }
 
   float effectiveMinZoom(int viewW, int viewH) {
@@ -179,6 +263,11 @@ class EditorState {
     if (unitIds.size() <= 0) return "rifleman";
     selectedUnitIndex = (selectedUnitIndex % unitIds.size() + unitIds.size()) % unitIds.size();
     return unitIds.get(selectedUnitIndex);
+  }
+
+  float unitRadiusPx(String typeId) {
+    Float r = unitRadiusById.get(typeId);
+    return r != null ? r : tileSize * 0.28f;
   }
 
   void cycleBuilding(int dir) {

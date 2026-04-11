@@ -21,7 +21,7 @@ A Processing-based RTS prototype inspired by classic games (StarCraft / Red Aler
   - `-ManualControl`
   - `-ManualEndKey`
   - `-ManualAutoFrontline`
-- **RTS Map Editor** (separate Processing sketch under `map_editor/`): edit terrain, spawns, mines, initial buildings/units; validation; `Ctrl+R` writes to `RTS_p5/data/map_test.json` for a quick in-game check.
+- **RTS Map Editor** (separate Processing sketch under `map_editor/`): **File** (Save, Save As, Load, New), **Map**, **Edit** (undo/redo, cut/copy/paste, edit-mode stub), **Help**; interaction modes **Select** / **Place** / **Edit**; box select and multi-select on units/buildings; left toolbar and minimap; validation; `Ctrl+R` saves then copies to `RTS_p5/data/map_test.json` for a quick in-game check.
 
 ## Repository Layout
 
@@ -69,7 +69,7 @@ Default output:
 powershell -ExecutionPolicy Bypass -File .\map-editor.ps1
 ```
 
-Uses the same default Processing path as `build.ps1`; override with `-ProcessingExe` and `-SketchDir` if needed. **Pan:** middle mouse or **Space + left drag**. **Zoom:** mouse wheel (same convention as in-game camera). See `docs/processing_ai_handoff.md` for details.
+Uses the same default Processing path as `build.ps1`; override with `-ProcessingExe` and `-SketchDir` if needed. **Layout:** top **File** / **Map** / **Edit** / **Help** (File: Save, Save As, Load, New — no menu export; **Ctrl+R** still writes `map_test.json`). **Select** mode with the select tool: drag to box-select, click to pick nearest, **Shift** to add/toggle. **Place** mode for terrain and entities; **Edit** mode is a stub that blocks map edits. Undo **Ctrl+Z**, redo **Ctrl+Y** or **Ctrl+Shift+Z**, clipboard **Ctrl+X/C/V**. Map previous/next under **Map**. Left toolbar, center map, right palette with **minimap** (click to move the camera). **Pan:** middle mouse or **Space + left drag**. **Zoom:** wheel on the map. See `docs/processing_ai_handoff.md` for details.
 
 ## Run Benchmarks
 
@@ -143,7 +143,7 @@ python .\tools\benchmark_dashboard.py
 
 ### v0.2.9
 
-- Map editor sketch (`map_editor/`) with terrain brush, spawns, mines, buildings/units, validation, and save/load against `RTS_p5/data` JSON maps.
+- Map editor sketch (`map_editor/`) with File/Save As/Load, Edit menu (undo/redo, cut/copy/paste), select/place/edit modes, box multi-select, native file dialogs for paths outside `data`, validation, and save/load for JSON maps.
 - `map-editor.ps1` launcher; editor viewport uses top-left camera convention and zoom range aligned with `Camera.pde` (wheel zoom toward cursor).
 - Docs: `docs/processing_ai_handoff.md`, `docs/processing_project_playbook.md`.
 

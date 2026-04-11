@@ -14,6 +14,8 @@
 | `RTS_p5/` | 主游戏原型 | `RTS_p5.pde` |
 | `map_editor/` | RTS 地图编辑器 | `map_editor.pde` |
 
+**地图编辑器 UI（鼠标优先）**：顶部菜单栏（Save / Load / New / Export / 切换地图文件）；左侧工具条（点选工具、**笔刷占地网格示意**、`+/-` 调笔刷、建筑/单位放置时的 **Player/Enemy**）；中间地图视口，**右上角小地图**（与游戏内缩略图风格一致，左键点击跳转视野）；右侧建筑/单位列表。按钮与列表行带**悬停高亮**，滚轮在列表上滚动、在地图上缩放。快捷键（Ctrl+S 等与菜单并列）仍可用。
+
 Processing 要求：**草图文件夹名与主 `.pde` 文件名一致**；同目录下多个 `.pde` 属于同一草图。
 
 游戏数据与配置主要在 `RTS_p5/data/`（JSON 等），运行时与基准相关说明见根目录 `README.md` 与 `docs/benchmark_workflow.md`。
@@ -63,7 +65,7 @@ powershell -ExecutionPolicy Bypass -File .\map-editor.ps1 -ProcessingExe "C:\Pat
 ## 给 AI 会话用的使用方式
 
 1. **在对话里引用文件**：例如 `@build.ps1`、`@README.md`、相关 `.pde` 与 `data/` 下的 JSON，减少路径与入口的猜测。
-2. **改完逻辑后优先跑脚本**：游戏核心改动可跑 `smoke.ps1`；地图编辑器改动跑 `map-editor.ps1` 做手动点选验证。
+2. **改完逻辑后优先跑脚本**：游戏核心改动可跑 `smoke.ps1`；地图编辑器改动跑 `map-editor.ps1` 做手动验证（工具栏/调色板点击与地图涂抹）。
 3. **大功能或跨文件重构**：在对话或单独 handoff 中写清「验收命令」和「预期现象」（窗口标题、某张地图、某配置项）。
 
 ## 建议在其它 handoff 文档里重复的最短信息

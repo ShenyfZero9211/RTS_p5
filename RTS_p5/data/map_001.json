@@ -6,9 +6,33 @@
     ".": "sand - walkable open ground"
   },
   "tileSize": 40,
-  "initialBuildings": [],
+  "initialBuildings": [
+    {
+      "faction": "enemy",
+      "x": 37,
+      "y": 39,
+      "type": "base"
+    },
+    {
+      "faction": "player",
+      "x": 4,
+      "y": 3,
+      "type": "base"
+    }
+  ],
   "width": 48,
-  "spawnPoints": [],
+  "spawnPoints": [
+    {
+      "faction": "player",
+      "x": 7,
+      "y": 4
+    },
+    {
+      "faction": "enemy",
+      "x": 36,
+      "y": 40
+    }
+  ],
   "rows": [
     "................................................",
     "................................................",
@@ -59,7 +83,83 @@
     "................................................",
     "................................................"
   ],
-  "initialUnits": [],
+  "initialUnits": [
+    {
+      "worldCY": 300,
+      "faction": "player",
+      "x": 6,
+      "y": 7,
+      "type": "miner",
+      "worldCX": 260
+    },
+    {
+      "worldCY": 300,
+      "faction": "player",
+      "x": 7,
+      "y": 7,
+      "type": "miner",
+      "worldCX": 300
+    },
+    {
+      "worldCY": 300,
+      "faction": "player",
+      "x": 8,
+      "y": 7,
+      "type": "miner",
+      "worldCX": 340
+    },
+    {
+      "worldCY": 300,
+      "faction": "player",
+      "x": 9,
+      "y": 7,
+      "type": "miner",
+      "worldCX": 380
+    },
+    {
+      "worldCY": 1500,
+      "faction": "enemy",
+      "x": 34,
+      "y": 37,
+      "type": "miner",
+      "worldCX": 1380
+    },
+    {
+      "worldCY": 1500,
+      "faction": "enemy",
+      "x": 35,
+      "y": 37,
+      "type": "miner",
+      "worldCX": 1420
+    },
+    {
+      "worldCY": 1500,
+      "faction": "enemy",
+      "x": 36,
+      "y": 37,
+      "type": "miner",
+      "worldCX": 1460
+    },
+    {
+      "worldCY": 1500,
+      "faction": "enemy",
+      "x": 37,
+      "y": 37,
+      "type": "miner",
+      "worldCX": 1500
+    }
+  ],
   "height": 48,
-  "goldMines": []
+  "goldMines": [
+    {
+      "amount": 5000,
+      "x": 33,
+      "y": 38
+    },
+    {
+      "amount": 5000,
+      "x": 10,
+      "y": 5
+    }
+  ]
 }

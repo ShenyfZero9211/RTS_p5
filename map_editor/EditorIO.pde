@@ -3,14 +3,23 @@ import java.io.File;
 class EditorIO {
   EditorState s;
   String dataDirPath;
+  boolean fileDialogPending = false;
 
   EditorIO(EditorState state) {
     s = state;
     dataDirPath = sketchPath("../RTS_p5/data");
   }
 
-  String currentMapPath() {
+  /** Absolute path used for Save / subsequent saves; empty means dataDir + currentMapFile. */
+  String effectiveSavePath() {
+    if (s.loadedMapAbsolutePath != null && s.loadedMapAbsolutePath.length() > 0) {
+      return s.loadedMapAbsolutePath;
+    }
     return dataDirPath + File.separator + s.currentMapFile;
+  }
+
+  String currentMapPath() {
+    return effectiveSavePath();
   }
 
   void refreshMapFiles() {
@@ -40,87 +49,65 @@ class EditorIO {
     if (idx < 0) idx = s.availableMapFiles.size() - 1;
     if (idx >= s.availableMapFiles.size()) idx = 0;
     s.currentMapFile = s.availableMapFiles.get(idx);
+    s.loadedMapAbsolutePath = "";
     s.setStatus("Current map file: " + s.currentMapFile);
   }
 
-  boolean openCurrentMap() {
-    String p = currentMapPath();
-    JSONObject root = loadJSONObject(p);
-    if (root == null) {
-      s.setStatus("Failed to open: " + p);
-      return false;
-    }
-    int w = root.getInt("width", 48);
-    int h = root.getInt("height", 48);
-    int ts = root.getInt("tileSize", 40);
-    s.initDefaults(w, h, ts);
-    s.disableStaticObstacles = root.getBoolean("disableStaticObstacles", false);
-
-    JSONArray rows = root.getJSONArray("rows");
-    if (rows != null) {
-      for (int y = 0; y < min(s.mapHeight, rows.size()); y++) {
-        String row = rows.getString(y);
-        for (int x = 0; x < min(s.mapWidth, row.length()); x++) {
-          char c = row.charAt(x);
-          int t = 0;
-          if (c == 'R') t = 1;
-          if (c == 'B') t = 2;
-          s.setTerrainAt(x, y, t);
-        }
-      }
-    }
-
-    s.mines.clear();
-    JSONArray mines = root.getJSONArray("goldMines");
-    if (mines != null) {
-      for (int i = 0; i < mines.size(); i++) {
-        JSONObject m = mines.getJSONObject(i);
-        s.mines.add(new EditorMine(m.getInt("x", 0), m.getInt("y", 0), m.getInt("amount", 3000)));
-      }
-    }
-
-    s.spawns.clear();
-    JSONArray spawns = root.getJSONArray("spawnPoints");
-    if (spawns != null) {
-      for (int i = 0; i < spawns.size(); i++) {
-        JSONObject sp = spawns.getJSONObject(i);
-        s.spawns.add(new EditorSpawn(sp.getString("faction", "player"), sp.getInt("x", 0), sp.getInt("y", 0)));
-      }
-    }
-
-    s.initialBuildings.clear();
-    JSONArray buildings = root.getJSONArray("initialBuildings");
-    if (buildings != null) {
-      for (int i = 0; i < buildings.size(); i++) {
-        JSONObject b = buildings.getJSONObject(i);
-        s.initialBuildings.add(new EditorPlacedBuilding(
-          b.getString("faction", "player"),
-          b.getString("type", "base"),
-          b.getInt("x", 0),
-          b.getInt("y", 0)
-          ));
-      }
-    }
-
-    s.initialUnits.clear();
-    JSONArray units = root.getJSONArray("initialUnits");
-    if (units != null) {
-      for (int i = 0; i < units.size(); i++) {
-        JSONObject u = units.getJSONObject(i);
-        s.initialUnits.add(new EditorPlacedUnit(
-          u.getString("faction", "player"),
-          u.getString("type", "rifleman"),
-          u.getInt("x", 0),
-          u.getInt("y", 0)
-          ));
-      }
-    }
-
-    s.setStatus("Opened map: " + s.currentMapFile);
-    return true;
+  void promptLoadMap() {
+    if (fileDialogPending) return;
+    fileDialogPending = true;
+    selectInput("Load map JSON", "loadMapFileSelected");
   }
 
-  boolean saveCurrentMap() {
+  /** Opens Save As only if validation passes (same gate as Save). */
+  void promptSaveAs(EditorValidation validator) {
+    EditorValidationResult r = validator.validate();
+    if (!r.ok()) {
+      s.setStatus("Save As blocked: " + r.errors.size() + " validation errors.");
+      return;
+    }
+    if (fileDialogPending) return;
+    fileDialogPending = true;
+    selectOutput("Save map as JSON", "saveMapAsSelected", new File(dataDirPath, s.currentMapFile));
+  }
+
+  void completeLoadDialog(File f) {
+    fileDialogPending = false;
+    if (f == null) {
+      s.setStatus("Load cancelled.");
+      return;
+    }
+    loadFromFile(f);
+  }
+
+  void completeSaveAsDialog(File f, EditorValidation validator) {
+    fileDialogPending = false;
+    if (f == null) {
+      s.setStatus("Save As cancelled.");
+      return;
+    }
+    String path = f.getAbsolutePath();
+    if (!path.toLowerCase().endsWith(".json")) {
+      path = path + ".json";
+    }
+    if (saveMapToAbsolutePath(path, validator)) {
+      s.loadedMapAbsolutePath = path;
+      s.currentMapFile = new File(path).getName();
+      s.allowDirectSave = true;
+      s.setStatus("Saved to: " + path);
+    }
+  }
+
+  /** Save to current path, or open Save As if this map has no save target yet (e.g. after New). */
+  void requestSave(EditorValidation validator) {
+    if (!s.allowDirectSave) {
+      promptSaveAs(validator);
+      return;
+    }
+    saveCurrentMap(validator);
+  }
+
+  JSONObject buildMapRoot() {
     JSONObject root = new JSONObject();
     root.setInt("tileSize", s.tileSize);
     root.setInt("width", s.mapWidth);
@@ -183,16 +170,156 @@ class EditorIO {
       JSONObject o = new JSONObject();
       o.setString("faction", u.faction);
       o.setString("type", u.type);
-      o.setInt("x", u.tx);
-      o.setInt("y", u.ty);
+      float ts = s.tileSize;
+      o.setFloat("worldCX", u.worldCX);
+      o.setFloat("worldCY", u.worldCY);
+      o.setInt("x", (int)floor(u.worldCX / ts));
+      o.setInt("y", (int)floor(u.worldCY / ts));
       units.append(o);
     }
     root.setJSONArray("initialUnits", units);
+    return root;
+  }
 
-    String target = currentMapPath();
-    saveJSONObject(root, target);
+  boolean saveMapToAbsolutePath(String absolutePath, EditorValidation validator) {
+    EditorValidationResult r = validator.validate();
+    if (!r.ok()) {
+      s.setStatus("Save blocked: " + r.errors.size() + " validation errors.");
+      return false;
+    }
+    saveJSONObject(buildMapRoot(), absolutePath);
+    return true;
+  }
+
+  /** Save over current path (data file or last loaded absolute path). Validates first. */
+  boolean saveCurrentMap(EditorValidation validator) {
+    EditorValidationResult r = validator.validate();
+    if (!r.ok()) {
+      s.setStatus("Save blocked: " + r.errors.size() + " validation errors.");
+      return false;
+    }
+    String target = effectiveSavePath();
+    saveJSONObject(buildMapRoot(), target);
+    s.loadedMapAbsolutePath = target;
+    s.currentMapFile = new File(target).getName();
+    s.allowDirectSave = true;
     s.setStatus("Saved map: " + target);
     return true;
+  }
+
+  void applyMapFromJson(JSONObject root) {
+    int w = root.getInt("width", 48);
+    int h = root.getInt("height", 48);
+    int ts = root.getInt("tileSize", 40);
+    s.initDefaults(w, h, ts);
+    s.disableStaticObstacles = root.getBoolean("disableStaticObstacles", false);
+
+    JSONArray rows = root.getJSONArray("rows");
+    if (rows != null) {
+      for (int y = 0; y < min(s.mapHeight, rows.size()); y++) {
+        String row = rows.getString(y);
+        for (int x = 0; x < min(s.mapWidth, row.length()); x++) {
+          char c = row.charAt(x);
+          int t = 0;
+          if (c == 'R') t = 1;
+          if (c == 'B') t = 2;
+          s.setTerrainAt(x, y, t);
+        }
+      }
+    }
+
+    s.mines.clear();
+    JSONArray mines = root.getJSONArray("goldMines");
+    if (mines != null) {
+      for (int i = 0; i < mines.size(); i++) {
+        JSONObject m = mines.getJSONObject(i);
+        s.mines.add(new EditorMine(m.getInt("x", 0), m.getInt("y", 0), m.getInt("amount", 3000)));
+      }
+    }
+
+    s.spawns.clear();
+    JSONArray spawns = root.getJSONArray("spawnPoints");
+    if (spawns != null) {
+      for (int i = 0; i < spawns.size(); i++) {
+        JSONObject sp = spawns.getJSONObject(i);
+        s.spawns.add(new EditorSpawn(sp.getString("faction", "player"), sp.getInt("x", 0), sp.getInt("y", 0)));
+      }
+    }
+
+    s.initialBuildings.clear();
+    JSONArray buildings = root.getJSONArray("initialBuildings");
+    if (buildings != null) {
+      for (int i = 0; i < buildings.size(); i++) {
+        JSONObject b = buildings.getJSONObject(i);
+        s.initialBuildings.add(new EditorPlacedBuilding(
+          b.getString("faction", "player"),
+          b.getString("type", "base"),
+          b.getInt("x", 0),
+          b.getInt("y", 0)
+          ));
+      }
+    }
+
+    s.initialUnits.clear();
+    JSONArray units = root.getJSONArray("initialUnits");
+    if (units != null) {
+      for (int i = 0; i < units.size(); i++) {
+        JSONObject u = units.getJSONObject(i);
+        float wcx;
+        float wcy;
+        if (u.hasKey("worldCX") && u.hasKey("worldCY")) {
+          wcx = u.getFloat("worldCX");
+          wcy = u.getFloat("worldCY");
+        } else {
+          int tx = u.getInt("x", 0);
+          int ty = u.getInt("y", 0);
+          wcx = (tx + 0.5f) * s.tileSize;
+          wcy = (ty + 0.5f) * s.tileSize;
+        }
+        s.initialUnits.add(new EditorPlacedUnit(
+          u.getString("faction", "player"),
+          u.getString("type", "rifleman"),
+          wcx, wcy
+          ));
+      }
+    }
+  }
+
+  boolean loadFromFile(File f) {
+    if (f == null || !f.exists()) {
+      s.setStatus("File not found.");
+      return false;
+    }
+    JSONObject root = loadJSONObject(f.getAbsolutePath());
+    if (root == null) {
+      s.setStatus("Failed to parse JSON: " + f.getAbsolutePath());
+      return false;
+    }
+    applyMapFromJson(root);
+    s.loadedMapAbsolutePath = f.getAbsolutePath();
+    s.currentMapFile = f.getName();
+    try {
+      File dataDir = new File(dataDirPath).getCanonicalFile();
+      File loaded = f.getCanonicalFile();
+      if (loaded.getParent() != null && loaded.getParentFile().equals(dataDir)) {
+        refreshMapFiles();
+      }
+    }
+    catch (Exception e) {
+      refreshMapFiles();
+    }
+    s.setStatus("Opened: " + f.getAbsolutePath());
+    s.allowDirectSave = true;
+    return true;
+  }
+
+  boolean openCurrentMap() {
+    File f = new File(effectiveSavePath());
+    if (!f.exists()) {
+      s.setStatus("No file at: " + f.getAbsolutePath());
+      return false;
+    }
+    return loadFromFile(f);
   }
 
   void loadDefinitions() {
@@ -216,6 +343,7 @@ class EditorIO {
       }
     }
 
+    s.unitRadiusById.clear();
     JSONObject uRoot = loadJSONObject(sketchPath("../RTS_p5/data/units.json"));
     if (uRoot != null) {
       JSONArray arr = uRoot.getJSONArray("units");
@@ -225,16 +353,22 @@ class EditorIO {
           String id = u.getString("id", "");
           if (id.length() <= 0) continue;
           s.unitIds.add(id);
+          s.unitRadiusById.put(id, u.getFloat("radius", 11f));
         }
       }
     }
   }
 
   void writeMapToMapTestForGameRun() {
-    String src = currentMapPath();
+    String src = effectiveSavePath();
     String dst = sketchPath("../RTS_p5/data/map_test.json");
     String[] lines = loadStrings(src);
-    if (lines == null) return;
+    if (lines == null) {
+      JSONObject root = buildMapRoot();
+      saveJSONObject(root, dst);
+      s.setStatus("Map written to map_test.json");
+      return;
+    }
     saveStrings(dst, lines);
     s.setStatus("Map written to map_test.json");
   }

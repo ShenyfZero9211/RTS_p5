@@ -55,12 +55,16 @@ class EditorValidation {
     }
 
     for (EditorPlacedUnit u : s.initialUnits) {
-      if (!s.inBounds(u.tx, u.ty)) {
-        r.errors.add("Unit out of bounds: " + u.type + " (" + u.tx + "," + u.ty + ")");
+      float ur = s.unitRadiusPx(u.type);
+      if (u.worldCX < ur || u.worldCY < ur ||
+        u.worldCX > s.mapWidth * s.tileSize - ur || u.worldCY > s.mapHeight * s.tileSize - ur) {
+        r.errors.add("Unit out of bounds: " + u.type);
         continue;
       }
-      if (s.terrainAt(u.tx, u.ty) == 2) {
-        r.errors.add("Unit on blocked tile: " + u.type + " (" + u.tx + "," + u.ty + ")");
+      int utx = u.centerTileX(s);
+      int uty = u.centerTileY(s);
+      if (s.terrainAt(utx, uty) == 2) {
+        r.errors.add("Unit on blocked tile: " + u.type + " (" + utx + "," + uty + ")");
       }
     }
     return r;

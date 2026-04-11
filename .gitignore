@@ -5,4 +5,6 @@ Thumbs.db
 *.log
 _cli_build_out/
 _cli_build_out_editor/
+_cli_build*/
+_cli_verify*/
 benchmarks/

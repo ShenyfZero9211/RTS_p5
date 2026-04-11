@@ -3,34 +3,181 @@ class EditorUI {
   EditorTools tools;
   EditorIO io;
   EditorValidation validator;
+  EditorToolbar chromeToolbar;
+  EditorPalette chromePalette;
+  EditorMenuBar chromeMenuBar;
+  EditorMinimap chromeMinimap;
+  EditorEditHistory editHistory = new EditorEditHistory();
+  EditorMapSelection mapSelection = new EditorMapSelection();
+  EditorNewMapDialog newMapDialog = new EditorNewMapDialog();
 
   boolean draggingPan = false;
+  boolean draggingMinimapView = false;
+  boolean selectingWorldDrag = false;
+  float selStartWx;
+  float selStartWy;
+  float selCurrWx;
+  float selCurrWy;
   int lastMouseX = 0;
   int lastMouseY = 0;
-  int panelW = 360;
 
   EditorUI(EditorState state, EditorTools tools, EditorIO io, EditorValidation validator) {
     this.s = state;
     this.tools = tools;
     this.io = io;
     this.validator = validator;
+    this.chromeToolbar = new EditorToolbar();
+    this.chromePalette = new EditorPalette();
+    this.chromeMenuBar = new EditorMenuBar();
+    this.chromeMinimap = new EditorMinimap();
+  }
+
+  void onMapLoadedOrNew() {
+    editHistory.clear();
+    mapSelection.clear();
+    syncInteractionMode();
+  }
+
+  void syncInteractionMode() {
+    if (s.activeTool == EditorToolType.TOOL_BUILDING && s.buildingIds.size() <= 0) {
+      s.activeTool = EditorToolType.TOOL_SELECT;
+      s.interactionMode = EditorInteractionMode.MODE_SELECT;
+      return;
+    }
+    if (s.activeTool == EditorToolType.TOOL_UNIT && s.unitIds.size() <= 0) {
+      s.activeTool = EditorToolType.TOOL_SELECT;
+      s.interactionMode = EditorInteractionMode.MODE_SELECT;
+      return;
+    }
+    if (s.activeTool == EditorToolType.TOOL_SELECT) {
+      s.interactionMode = EditorInteractionMode.MODE_SELECT;
+    } else {
+      s.interactionMode = EditorInteractionMode.MODE_PLACE;
+    }
+  }
+
+  void mutationWillHappen() {
+    editHistory.pushBeforeChange(s);
+  }
+
+  void menuUndo() {
+    if (editHistory.undo(s)) {
+      mapSelection.clear();
+      s.setStatus("Undo");
+    }
+  }
+
+  void menuRedo() {
+    if (editHistory.redo(s)) {
+      mapSelection.clear();
+      s.setStatus("Redo");
+    }
+  }
+
+  void menuCopy() {
+    if (mapSelection.isEmpty()) {
+      s.setStatus("Copy: nothing selected.");
+      return;
+    }
+    mapSelection.copy(s);
+    s.setStatus("Copy (" + mapSelection.handles.size() + " items)");
+  }
+
+  void menuCut() {
+    if (mapSelection.isEmpty()) return;
+    mutationWillHappen();
+    mapSelection.cut(s);
+    s.setStatus("Cut");
+  }
+
+  void menuPaste() {
+    if (!inWorldViewport(mouseX, mouseY)) {
+      s.setStatus("Paste: move mouse over map.");
+      return;
+    }
+    PVector t = screenToTile(mouseX, mouseY);
+    JSONObject root = parseJSONObject(mapSelection.readClipboard());
+    if (root == null) {
+      s.setStatus("Paste: clipboard is not map editor JSON.");
+      return;
+    }
+    mutationWillHappen();
+    int n = mapSelection.applyPastePayload(s, tools, root, int(t.x), int(t.y));
+    mapSelection.clear();
+    s.setStatus("Pasted " + n + " objects.");
+  }
+
+  void promptNewMap() {
+    if (newMapDialog.showAndApply(s)) {
+      s.setStatus("New map " + s.mapWidth + " x " + s.mapHeight + " @ " + s.tileSize + "px.");
+      onMapLoadedOrNew();
+    }
+  }
+
+  String hotkeyHelpBlock() {
+    return "Hotkeys: 1/2/3 terrain  E/F/I  M P O  B U V\n"
+      + "[ / ] cycle type  +/- brush  Wheel zoom map\n"
+      + "Shift+drag rect terrain  Space+drag pan\n"
+      + "Ctrl+S save  Ctrl+Shift+S Save As  Ctrl+L load  Ctrl+N new\n"
+      + "Ctrl+Z undo  Ctrl+Y / Ctrl+Shift+Z redo  Ctrl+X/C/V cut/copy/paste\n"
+      + "Ctrl+R export map_test  Ctrl+[ ] cycle data map file";
+  }
+
+  PVector screenToWorld(int mx, int my) {
+    int viewL = s.mapViewLeftPx();
+    int viewTop = s.mapViewTopPx();
+    float lx = mx - viewL;
+    float ly = my - viewTop;
+    return new PVector(lx / s.zoom + s.camX, ly / s.zoom + s.camY);
   }
 
   void render() {
-    panelW = s.sidePanelW;
-    renderWorld();
-    renderSidePanel();
+    int mx = mouseX;
+    int my = mouseY;
+    EditorValidationResult vr = validator.validate();
+    syncInteractionMode();
+    chromeToolbar.render(s, mx, my);
+    renderWorld(mx, my);
+    chromePalette.render(s, chromeMinimap, mx, my);
+    chromePalette.renderFooter(s, vr, hotkeyHelpBlock());
+    String st = s.activeStatus();
+    if (st.length() > 0) {
+      int x0 = s.paletteLeftPx();
+      int pw = EditorState.PALETTE_W;
+      fill(50, 60, 70);
+      rect(x0 + 8, height - 42, pw - 16, 34, 6);
+      fill(255, 230, 140);
+      textSize(11);
+      textAlign(LEFT, CENTER);
+      text(st, x0 + 14, height - 25);
+      textAlign(LEFT, TOP);
+    }
+    chromePalette.clampScroll(s);
+    chromePalette.clampValidationScroll(s, vr);
+    chromeMenuBar.render(s, mx, my);
+
+    boolean onMinimapView = chromePalette.minimapContains(s, mx, my) && chromeMinimap.viewportContainsScreen(mx, my);
+    boolean hand = chromeMenuBar.anyMenuHover(mx, my)
+      || chromeToolbar.hoverAny(s, mx, my)
+      || chromePalette.hoverAny(s, mx, my, vr)
+      || onMinimapView;
+    if (draggingMinimapView) {
+      cursor(MOVE);
+    } else {
+      cursor(hand ? HAND : ARROW);
+    }
   }
 
-  void renderWorld() {
-    int viewW = width - panelW;
-    int viewH = height;
+  void renderWorld(int mx, int my) {
+    int viewL = s.mapViewLeftPx();
+    int viewTop = s.mapViewTopPx();
+    int viewW = s.mapViewWidthPx();
+    int viewH = s.mapViewHeightPx();
     s.clampWorldCamera(viewW, viewH);
 
     pushMatrix();
-    clip(panelW, 0, viewW, viewH);
-    translate(panelW, 0);
-    // Same convention as RTS_p5 Camera: world (camX,camY) maps to top-left of world viewport.
+    clip(viewL, viewTop, viewW, viewH);
+    translate(viewL, viewTop);
     scale(s.zoom);
     translate(-s.camX, -s.camY);
 
@@ -77,7 +224,8 @@ class EditorUI {
       ellipse(sp.tx * s.tileSize + s.tileSize * 0.5, sp.ty * s.tileSize + s.tileSize * 0.5, s.tileSize * 0.55, s.tileSize * 0.55);
     }
 
-    for (EditorPlacedBuilding b : s.initialBuildings) {
+    for (int bi = 0; bi < s.initialBuildings.size(); bi++) {
+      EditorPlacedBuilding b = s.initialBuildings.get(bi);
       int[] sz = s.buildingSizeById.get(b.type);
       int bw = sz == null ? 1 : max(1, sz[0]);
       int bh = sz == null ? 1 : max(1, sz[1]);
@@ -91,12 +239,15 @@ class EditorUI {
       text(b.type, b.tx * s.tileSize + 4, b.ty * s.tileSize + 4);
     }
 
-    for (EditorPlacedUnit u : s.initialUnits) {
+    for (int ui = 0; ui < s.initialUnits.size(); ui++) {
+      EditorPlacedUnit u = s.initialUnits.get(ui);
       if ("player".equals(u.faction)) fill(80, 180, 255);
       else fill(255, 120, 120);
       noStroke();
-      ellipse(u.tx * s.tileSize + s.tileSize * 0.5, u.ty * s.tileSize + s.tileSize * 0.5, s.tileSize * 0.35, s.tileSize * 0.35);
+      ellipse(u.worldCX, u.worldCY, s.tileSize * 0.35, s.tileSize * 0.35);
     }
+
+    renderSelectionHighlights();
 
     if (tools.draggingRectTerrain) {
       int minX = min(tools.rectStartTx, tools.rectEndTx);
@@ -107,99 +258,170 @@ class EditorUI {
       stroke(255, 230, 120);
       strokeWeight(2 / s.zoom);
       rect(minX * s.tileSize, minY * s.tileSize, (maxX - minX + 1) * s.tileSize, (maxY - minY + 1) * s.tileSize);
+    } else if (selectingWorldDrag) {
+      float loX = min(selStartWx, selCurrWx);
+      float hiX = max(selStartWx, selCurrWx);
+      float loY = min(selStartWy, selCurrWy);
+      float hiY = max(selStartWy, selCurrWy);
+      fill(120, 200, 255, 35);
+      noStroke();
+      rect(loX, loY, hiX - loX, hiY - loY);
+      noFill();
+      stroke(120, 230, 255, 220);
+      strokeWeight(2 / s.zoom);
+      rect(loX, loY, hiX - loX, hiY - loY);
+      noStroke();
+    } else {
+      renderPlacementHoverPreview(mx, my);
     }
 
     noClip();
     popMatrix();
   }
 
-  void renderSidePanel() {
+  void renderSelectionHighlights() {
+    float ts = s.tileSize;
+    float sw = max(2f, 3f / s.zoom);
+    noFill();
+    stroke(255, 255, 80, 240);
+    strokeWeight(sw);
+    for (EditorSelectHandle h : mapSelection.handles) {
+      if (h.kind == EditorSelectHandle.KIND_BUILDING && h.index >= 0 && h.index < s.initialBuildings.size()) {
+        EditorPlacedBuilding b = s.initialBuildings.get(h.index);
+        int[] sz = s.buildingSizeById.get(b.type);
+        int bw = sz == null ? 1 : max(1, sz[0]);
+        int bh = sz == null ? 1 : max(1, sz[1]);
+        rect(b.tx * ts - 1, b.ty * ts - 1, bw * ts + 2, bh * ts + 2);
+      } else if (h.kind == EditorSelectHandle.KIND_UNIT && h.index >= 0 && h.index < s.initialUnits.size()) {
+        EditorPlacedUnit u = s.initialUnits.get(h.index);
+        ellipse(u.worldCX, u.worldCY, ts * 0.55, ts * 0.55);
+      }
+    }
     noStroke();
-    fill(24);
-    rect(0, 0, panelW, height);
-    fill(240);
-    textSize(20);
-    text("RTS Map Editor", 16, 12);
-    textSize(12);
-    text("File: " + s.currentMapFile, 16, 46);
-    text("Map: " + s.mapWidth + "x" + s.mapHeight + "  tile=" + s.tileSize, 16, 64);
-    text("Tool: " + toolName(s.activeTool), 16, 82);
-    text("Brush: " + s.brushSize + "  Zoom: " + nf(s.zoom, 1, 2), 16, 100);
-    text("Building: " + s.currentBuildingId(), 16, 118);
-    text("Unit: " + s.currentUnitId(), 16, 136);
-
-    int y = 168;
-    fill(190);
-    text("Hotkeys", 16, y);
-    y += 18;
-    text("1/2/3 terrain  E erase  F fill  I pick", 16, y);
-    y += 16;
-    text("M mine  P player spawn  O enemy spawn", 16, y);
-    y += 16;
-    text("B building  U unit  V select", 16, y);
-    y += 16;
-    text("[ / ] cycle type  +/- brush  Wheel zoom", 16, y);
-    y += 16;
-    text("Shift+drag rect terrain  Space+drag pan", 16, y);
-    y += 16;
-    text("Ctrl+S save  Ctrl+L load  Ctrl+N new", 16, y);
-    y += 16;
-    text("Ctrl+[ / Ctrl+] cycle map file", 16, y);
-    y += 16;
-    text("Ctrl+R write to map_test.json", 16, y);
-
-    y += 28;
-    EditorValidationResult vr = validator.validate();
-    fill(vr.ok() ? color(120, 220, 140) : color(255, 145, 145));
-    text(vr.ok() ? "Validation: PASS" : "Validation: " + vr.errors.size() + " issues", 16, y);
-    y += 18;
-    fill(210);
-    int limit = min(10, vr.errors.size());
-    for (int i = 0; i < limit; i++) {
-      text("- " + vr.errors.get(i), 16, y);
-      y += 14;
-    }
-
-    String st = s.activeStatus();
-    if (st.length() > 0) {
-      fill(50, 60, 70);
-      rect(12, height - 44, panelW - 24, 30, 6);
-      fill(255, 230, 140);
-      text(st, 20, height - 35);
-    }
   }
 
-  String toolName(EditorToolType t) {
-    switch(t) {
-    case TOOL_SELECT:
-      return "SELECT";
-    case TOOL_TERRAIN_SAND:
-      return "TERRAIN_SAND";
-    case TOOL_TERRAIN_ROCK:
-      return "TERRAIN_ROCK";
-    case TOOL_TERRAIN_BLOCK:
-      return "TERRAIN_BLOCK";
-    case TOOL_ERASE:
-      return "ERASE";
-    case TOOL_FILL:
-      return "FILL";
-    case TOOL_MINE:
-      return "MINE";
-    case TOOL_SPAWN_PLAYER:
-      return "SPAWN_PLAYER";
-    case TOOL_SPAWN_ENEMY:
-      return "SPAWN_ENEMY";
-    case TOOL_BUILDING:
-      return "BUILDING";
-    case TOOL_UNIT:
-      return "UNIT";
+  void renderPlacementHoverPreview(int mx, int my) {
+    if (!inWorldViewport(mx, my)) return;
+    if (s.interactionMode == EditorInteractionMode.MODE_SELECT && s.activeTool == EditorToolType.TOOL_SELECT) {
+      return;
     }
-    return "UNKNOWN";
+    PVector tv = screenToTile(mx, my);
+    int tx = int(tv.x);
+    int ty = int(tv.y);
+    float ts = s.tileSize;
+    float sw = max(1.2f, 2f / s.zoom);
+    EditorToolType at = s.activeTool;
+
+    if (at == EditorToolType.TOOL_SELECT) {
+      if (!s.inBounds(tx, ty)) return;
+      noFill();
+      stroke(255, 220, 100, 220);
+      strokeWeight(sw);
+      rect(tx * ts + 0.5f, ty * ts + 0.5f, ts - 1, ts - 1, 2);
+      noStroke();
+      return;
+    }
+
+    if (at == EditorToolType.TOOL_TERRAIN_SAND || at == EditorToolType.TOOL_TERRAIN_ROCK ||
+      at == EditorToolType.TOOL_TERRAIN_BLOCK || at == EditorToolType.TOOL_ERASE) {
+      int n = s.brushFootprintSide();
+      int x0 = tx - (n - 1) / 2;
+      int y0 = ty - (n - 1) / 2;
+      fill(255, 240, 120, 45);
+      noStroke();
+      rect(x0 * ts, y0 * ts, n * ts, n * ts, 2);
+      noFill();
+      stroke(255, 230, 80, 240);
+      strokeWeight(sw);
+      rect(x0 * ts + 0.5f, y0 * ts + 0.5f, n * ts - 1, n * ts - 1, 2);
+      noStroke();
+      return;
+    }
+
+    if (at == EditorToolType.TOOL_FILL) {
+      if (!s.inBounds(tx, ty)) return;
+      fill(120, 220, 255, 40);
+      noStroke();
+      rect(tx * ts + 1, ty * ts + 1, ts - 2, ts - 2, 2);
+      noFill();
+      stroke(120, 220, 255, 230);
+      strokeWeight(sw);
+      rect(tx * ts + 0.5f, ty * ts + 0.5f, ts - 1, ts - 1, 2);
+      noStroke();
+      return;
+    }
+
+    if (at == EditorToolType.TOOL_MINE) {
+      if (!s.inBounds(tx, ty)) return;
+      fill(80, 200, 255, 55);
+      noStroke();
+      rect(tx * ts + 4, ty * ts + 4, ts - 8, ts - 8, 2);
+      noFill();
+      stroke(80, 220, 255, 240);
+      strokeWeight(sw);
+      rect(tx * ts + 3, ty * ts + 3, ts - 6, ts - 6, 2);
+      noStroke();
+      return;
+    }
+
+    if (at == EditorToolType.TOOL_SPAWN_PLAYER || at == EditorToolType.TOOL_SPAWN_ENEMY) {
+      if (!s.inBounds(tx, ty)) return;
+      boolean pl = at == EditorToolType.TOOL_SPAWN_PLAYER;
+      stroke(pl ? color(80, 200, 255, 240) : color(255, 130, 130, 240));
+      strokeWeight(sw);
+      noFill();
+      ellipse(tx * ts + ts * 0.5, ty * ts + ts * 0.5, ts * 0.62, ts * 0.62);
+      noStroke();
+      return;
+    }
+
+    if (at == EditorToolType.TOOL_BUILDING) {
+      if (!s.inBounds(tx, ty)) return;
+      int[] sz = s.buildingSizeById.get(s.currentBuildingId());
+      int bw = sz == null ? 1 : max(1, sz[0]);
+      int bh = sz == null ? 1 : max(1, sz[1]);
+      boolean pl = "player".equals(s.placementFaction);
+      fill(pl ? color(80, 180, 255, 55) : color(255, 120, 120, 55));
+      noStroke();
+      rect(tx * ts, ty * ts, bw * ts, bh * ts, 2);
+      noFill();
+      stroke(pl ? color(80, 200, 255, 240) : color(255, 140, 140, 240));
+      strokeWeight(sw);
+      rect(tx * ts + 0.5f, ty * ts + 0.5f, bw * ts - 1, bh * ts - 1, 2);
+      noStroke();
+      return;
+    }
+
+    if (at == EditorToolType.TOOL_UNIT) {
+      PVector w = screenToWorld(mx, my);
+      if (s.unitSnapToGrid) {
+        if (!s.inBounds(tx, ty)) return;
+      }
+      PVector place = new PVector();
+      int placeCode = tools.resolveUnitPlacement(s.currentUnitId(), w.x, w.y, true, place);
+      float pxc = place.x;
+      float pyc = place.y;
+      boolean pl = "player".equals(s.placementFaction);
+      stroke(pl ? color(80, 200, 255, 240) : color(255, 140, 140, 240));
+      strokeWeight(sw);
+      noFill();
+      ellipse(pxc, pyc, ts * 0.42, ts * 0.42);
+      if (placeCode != 0) {
+        float inset = ts * 0.42 * 0.32f;
+        stroke(220, 45, 45, 245);
+        strokeWeight(max(1.4f, 2f / s.zoom));
+        line(pxc - inset, pyc - inset, pxc + inset, pyc + inset);
+        line(pxc - inset, pyc + inset, pxc + inset, pyc - inset);
+      }
+      noStroke();
+    }
   }
 
   PVector screenToTile(int mx, int my) {
-    float lx = mx - panelW;
-    float ly = my;
+    int viewL = s.mapViewLeftPx();
+    int viewTop = s.mapViewTopPx();
+    float lx = mx - viewL;
+    float ly = my - viewTop;
     float wx = lx / s.zoom + s.camX;
     float wy = ly / s.zoom + s.camY;
     int tx = floor(wx / s.tileSize);
@@ -208,15 +430,27 @@ class EditorUI {
   }
 
   boolean inWorldViewport(int mx, int my) {
-    return mx >= panelW && mx < width && my >= 0 && my < height;
+    int vt = s.mapViewTopPx();
+    return mx >= s.mapViewLeftPx() && mx < s.mapViewRightPx() && my >= vt && my < height;
   }
 
   void applyToolAt(int tx, int ty, int button, boolean shiftDown) {
-    if (!s.inBounds(tx, ty)) return;
-    if (button == RIGHT) {
-      tools.removeAt(tx, ty);
+    if (s.interactionMode == EditorInteractionMode.MODE_SELECT && s.activeTool == EditorToolType.TOOL_SELECT) {
       return;
     }
+    PVector wWorld = screenToWorld(mouseX, mouseY);
+    if (button == RIGHT) {
+      mutationWillHappen();
+      tools.removeAtWorldPixel(wWorld.x, wWorld.y);
+      return;
+    }
+    if (s.activeTool == EditorToolType.TOOL_UNIT) {
+      if (!inWorldViewport(mouseX, mouseY)) return;
+      mutationWillHappen();
+      tools.tryPlaceUnit(s.placementFaction, s.currentUnitId(), wWorld.x, wWorld.y);
+      return;
+    }
+    if (!s.inBounds(tx, ty)) return;
 
     if (s.activeTool == EditorToolType.TOOL_TERRAIN_SAND ||
       s.activeTool == EditorToolType.TOOL_TERRAIN_ROCK ||
@@ -225,42 +459,62 @@ class EditorUI {
       if (shiftDown && !tools.draggingRectTerrain) {
         tools.beginRectTerrain(tx, ty);
       } else if (!shiftDown) {
+        mutationWillHappen();
         tools.applyBrush(tx, ty, tools.toolTerrainValue());
       }
       return;
     }
     if (s.activeTool == EditorToolType.TOOL_FILL) {
+      mutationWillHappen();
       tools.fillTerrain(tx, ty, tools.toolTerrainValue());
       return;
     }
     if (s.activeTool == EditorToolType.TOOL_MINE) {
+      mutationWillHappen();
       tools.placeMine(tx, ty);
       return;
     }
     if (s.activeTool == EditorToolType.TOOL_SPAWN_PLAYER) {
+      mutationWillHappen();
       tools.placeSpawn("player", tx, ty);
       return;
     }
     if (s.activeTool == EditorToolType.TOOL_SPAWN_ENEMY) {
+      mutationWillHappen();
       tools.placeSpawn("enemy", tx, ty);
       return;
     }
     if (s.activeTool == EditorToolType.TOOL_BUILDING) {
-      tools.placeBuilding("player", s.currentBuildingId(), tx, ty);
-      return;
-    }
-    if (s.activeTool == EditorToolType.TOOL_UNIT) {
-      tools.placeUnit("player", s.currentUnitId(), tx, ty);
+      mutationWillHappen();
+      tools.placeBuilding(s.placementFaction, s.currentBuildingId(), tx, ty);
       return;
     }
   }
 
   boolean panModifierKeys() {
-    // Space+drag to pan: use key (reliable); keyCode is not always 32 for space in Processing.
     return keyPressed && (key == ' ' || keyCode == 32);
   }
 
   void onMousePressed(int mx, int my, int button) {
+    if (chromeMenuBar.mousePressed(s, io, validator, this, mx, my, button)) return;
+    if (chromeToolbar.mousePressed(s, mx, my, button)) {
+      syncInteractionMode();
+      return;
+    }
+    if (button == LEFT && chromePalette.minimapContains(s, mx, my)) {
+      int[] r = new int[4];
+      chromePalette.minimapScreenRect(s, r);
+      chromeMinimap.syncGeometry(s, r[0], r[1], r[2], r[3]);
+      if (chromeMinimap.viewportContainsScreen(mx, my)) {
+        draggingMinimapView = true;
+        lastMouseX = mx;
+        lastMouseY = my;
+        return;
+      }
+    }
+    if (chromePalette.tryMinimapClick(s, chromeMinimap, mx, my, button)) return;
+    if (chromePalette.mousePressed(s, mx, my, button)) return;
+
     if (!inWorldViewport(mx, my)) return;
     if (button == CENTER || (button == LEFT && panModifierKeys())) {
       draggingPan = true;
@@ -268,6 +522,17 @@ class EditorUI {
       lastMouseY = my;
       return;
     }
+
+    if (button == LEFT && s.interactionMode == EditorInteractionMode.MODE_SELECT && s.activeTool == EditorToolType.TOOL_SELECT) {
+      PVector w = screenToWorld(mx, my);
+      selectingWorldDrag = true;
+      selStartWx = w.x;
+      selStartWy = w.y;
+      selCurrWx = w.x;
+      selCurrWy = w.y;
+      return;
+    }
+
     PVector t = screenToTile(mx, my);
     if (button == CENTER) {
       tools.pickTerrain(int(t.x), int(t.y));
@@ -277,12 +542,24 @@ class EditorUI {
   }
 
   void onMouseDragged(int mx, int my, int button) {
+    if (draggingMinimapView) {
+      chromeMinimap.dragCameraByMinimapDelta(s, mx - lastMouseX, my - lastMouseY);
+      lastMouseX = mx;
+      lastMouseY = my;
+      return;
+    }
     if (draggingPan) {
       s.camX -= (mx - lastMouseX) / s.zoom;
       s.camY -= (my - lastMouseY) / s.zoom;
-      s.clampWorldCamera(width - panelW, height);
+      s.clampWorldCamera(s.mapViewWidthPx(), s.mapViewHeightPx());
       lastMouseX = mx;
       lastMouseY = my;
+      return;
+    }
+    if (selectingWorldDrag && button == LEFT) {
+      PVector w = screenToWorld(mx, my);
+      selCurrWx = w.x;
+      selCurrWy = w.y;
       return;
     }
     if (!inWorldViewport(mx, my)) return;
@@ -296,60 +573,123 @@ class EditorUI {
       s.activeTool == EditorToolType.TOOL_TERRAIN_ROCK ||
       s.activeTool == EditorToolType.TOOL_TERRAIN_BLOCK ||
       s.activeTool == EditorToolType.TOOL_ERASE)) {
+      mutationWillHappen();
       tools.applyBrush(int(t.x), int(t.y), tools.toolTerrainValue());
     }
   }
 
   void onMouseReleased(int mx, int my, int button) {
+    if (draggingMinimapView) {
+      draggingMinimapView = false;
+      return;
+    }
     if (draggingPan) {
       draggingPan = false;
       return;
     }
+    if (selectingWorldDrag && button == LEFT) {
+      selectingWorldDrag = false;
+      PVector w = screenToWorld(mx, my);
+      selCurrWx = w.x;
+      selCurrWy = w.y;
+      boolean isClick = abs(selCurrWx - selStartWx) < 4 && abs(selCurrWy - selStartWy) < 4;
+      boolean shift = keyPressed && keyCode == SHIFT;
+      if (isClick) {
+        mapSelection.pickAtWorld(s, selCurrWx, selCurrWy, shift, 2.5f * s.tileSize);
+      } else {
+        mapSelection.selectBox(s, selStartWx, selStartWy, selCurrWx, selCurrWy, shift);
+      }
+      return;
+    }
     if (tools.draggingRectTerrain) {
-      tools.commitRectTerrain(tools.toolTerrainValue());
+      if (inWorldViewport(mx, my)) {
+        mutationWillHappen();
+        tools.commitRectTerrain(tools.toolTerrainValue());
+      } else {
+        tools.cancelRectTerrain();
+      }
     }
   }
 
   void onMouseWheel(float amount, int mx, int my) {
+    if (my < EditorState.MENU_BAR_H) return;
+    EditorValidationResult vr = validator.validate();
+    if (chromePalette.mouseWheel(s, amount, mx, my, vr)) return;
     if (!inWorldViewport(mx, my)) return;
-    int viewW = width - panelW;
-    s.applyWheelZoom(amount, mx - panelW, my, viewW, height);
+    int viewL = s.mapViewLeftPx();
+    int viewTop = s.mapViewTopPx();
+    int viewW = s.mapViewWidthPx();
+    int viewH = s.mapViewHeightPx();
+    s.applyWheelZoom(amount, mx - viewL, my - viewTop, viewW, viewH);
   }
 
   void onKeyPressed(char k, int keyCode) {
     boolean ctrl = keyEvent != null && keyEvent.isControlDown();
-    if (ctrl && (k == 's' || k == 'S')) {
-      EditorValidationResult r = validator.validate();
-      if (!r.ok()) {
-        s.setStatus("Save blocked: " + r.errors.size() + " validation errors.");
-      } else {
-        io.saveCurrentMap();
+    boolean shift = keyEvent != null && keyEvent.isShiftDown();
+    int vk = keyCode;
+    // With Ctrl held, `key` is often a control char (e.g. Ctrl+Z -> 26), not 'z'. Use keyCode + VK_*.
+    if (ctrl) {
+      if (shift && vk == java.awt.event.KeyEvent.VK_S) {
+        io.promptSaveAs(validator);
+        return;
       }
-      return;
-    }
-    if (ctrl && (k == 'l' || k == 'L')) {
-      io.openCurrentMap();
-      return;
-    }
-    if (ctrl && (k == 'n' || k == 'N')) {
-      s.initDefaults(48, 48, 40);
-      s.setStatus("New blank map.");
-      return;
-    }
-    if (ctrl && (k == 'r' || k == 'R')) {
-      io.saveCurrentMap();
-      io.writeMapToMapTestForGameRun();
-      return;
-    }
-    if (ctrl && k == '[') {
-      io.cycleMapFile(-1);
-      return;
-    }
-    if (ctrl && k == ']') {
-      io.cycleMapFile(1);
-      return;
+      if (!shift && vk == java.awt.event.KeyEvent.VK_S) {
+        io.requestSave(validator);
+        return;
+      }
+      if (vk == java.awt.event.KeyEvent.VK_L) {
+        io.promptLoadMap();
+        return;
+      }
+      if (vk == java.awt.event.KeyEvent.VK_N) {
+        promptNewMap();
+        return;
+      }
+      if (vk == java.awt.event.KeyEvent.VK_R) {
+        if (!s.allowDirectSave) {
+          io.promptSaveAs(validator);
+          return;
+        }
+        if (io.saveCurrentMap(validator)) {
+          io.writeMapToMapTestForGameRun();
+        }
+        return;
+      }
+      if (vk == java.awt.event.KeyEvent.VK_OPEN_BRACKET) {
+        io.cycleMapFile(-1);
+        return;
+      }
+      if (vk == java.awt.event.KeyEvent.VK_CLOSE_BRACKET) {
+        io.cycleMapFile(1);
+        return;
+      }
+      if (vk == java.awt.event.KeyEvent.VK_Z && shift) {
+        menuRedo();
+        return;
+      }
+      if (vk == java.awt.event.KeyEvent.VK_Z && !shift) {
+        menuUndo();
+        return;
+      }
+      if (vk == java.awt.event.KeyEvent.VK_Y) {
+        menuRedo();
+        return;
+      }
+      if (vk == java.awt.event.KeyEvent.VK_X) {
+        menuCut();
+        return;
+      }
+      if (vk == java.awt.event.KeyEvent.VK_C) {
+        menuCopy();
+        return;
+      }
+      if (vk == java.awt.event.KeyEvent.VK_V) {
+        menuPaste();
+        return;
+      }
     }
 
+    EditorToolType prevTool = s.activeTool;
     if (k == '1') s.activeTool = EditorToolType.TOOL_TERRAIN_SAND;
     else if (k == '2') s.activeTool = EditorToolType.TOOL_TERRAIN_ROCK;
     else if (k == '3') s.activeTool = EditorToolType.TOOL_TERRAIN_BLOCK;
@@ -375,9 +715,19 @@ class EditorUI {
     } else if (k == '-') {
       s.brushSize = max(1, s.brushSize - 1);
     } else if (keyCode == DELETE || keyCode == BACKSPACE) {
-      // Delete currently selected object by tile under cursor.
-      PVector t = screenToTile(mouseX, mouseY);
-      tools.removeAt(int(t.x), int(t.y));
+      if (!mapSelection.isEmpty()) {
+        mutationWillHappen();
+        mapSelection.removeSelectedFromMap(s);
+        s.setStatus("Deleted selection.");
+      } else if (inWorldViewport(mouseX, mouseY)) {
+        mutationWillHappen();
+        PVector t = screenToTile(mouseX, mouseY);
+        tools.removeAt(int(t.x), int(t.y));
+      }
+    }
+    if (prevTool != s.activeTool) {
+      s.paletteListScroll = 0;
+      syncInteractionMode();
     }
   }
 }

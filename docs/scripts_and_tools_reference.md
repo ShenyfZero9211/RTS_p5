@@ -198,6 +198,7 @@ sequenceDiagram
 |------|------|
 | **用途** | 独立 Processing 草图，用于编辑与主工程配合的地图等资源（见 `map_editor/map_editor.pde` 与各 `Editor*.pde`）。 |
 | **启动** | `map-editor.ps1`（`cli --run`），不经过 `build.ps1`。 |
+| **界面** | 顶栏菜单、左工具栏（含笔刷示意）、中地图+右上小地图、右侧列表与校验；悬停高亮；小地图点击跳转相机。 |
 
 ---
 

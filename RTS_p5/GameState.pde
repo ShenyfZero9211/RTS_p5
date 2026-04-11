@@ -107,6 +107,9 @@ class GameState {
   int benchmarkLastEnemyReinforce = 0;
   float benchmarkReinforceFlashTimer = 0;
 
+  /** Map JSON in sketch `data/` folder (e.g. exported from the map editor). */
+  String defaultMapJson = "map_001.json";
+
   GameState(int screenW, int screenH) {
     this.screenW = screenW;
     this.screenH = screenH;
@@ -167,8 +170,8 @@ class GameState {
     buildSystem.lastFailReason = "";
 
     map = new TileMap();
-    if (!map.loadFromJson("map_test.json")) {
-      lastStartError = "Failed to load map_test.json";
+    if (!map.loadFromJson(defaultMapJson)) {
+      lastStartError = "Failed to load " + defaultMapJson;
       println(lastStartError);
       map = null;
       return false;
@@ -240,14 +243,99 @@ class GameState {
       addInitialBuildingAt(barracks, Faction.ENEMY, enemyBasePos.x - ts * 6.5, enemyBasePos.y - ts * 6.0, 1);
     }
 
-    spawnInitialUnitNear(playerBasePos, Faction.PLAYER, miner, 2.8f, 3.4f);
-    spawnInitialUnitNear(playerBasePos, Faction.PLAYER, miner, 3.7f, 3.8f);
-    spawnInitialUnitNear(playerBasePos, Faction.PLAYER, rifle, 4.6f, 4.2f);
-    spawnInitialUnitNear(playerBasePos, Faction.PLAYER, rocket, 5.4f, 5.0f);
-    spawnInitialUnitNear(enemyBasePos, Faction.ENEMY, miner, -2.8f, -3.2f);
-    spawnInitialUnitNear(enemyBasePos, Faction.ENEMY, miner, -3.8f, -3.8f);
-    spawnInitialUnitNear(enemyBasePos, Faction.ENEMY, rifle, -4.6f, -4.3f);
-    spawnInitialUnitNear(enemyBasePos, Faction.ENEMY, rocket, -5.5f, -5.1f);
+    if (!spawnInitialUnitsFromMapJson()) {
+      spawnInitialUnitNear(playerBasePos, Faction.PLAYER, miner, 2.8f, 3.4f);
+      spawnInitialUnitNear(playerBasePos, Faction.PLAYER, miner, 3.7f, 3.8f);
+      spawnInitialUnitNear(playerBasePos, Faction.PLAYER, rifle, 4.6f, 4.2f);
+      spawnInitialUnitNear(playerBasePos, Faction.PLAYER, rocket, 5.4f, 5.0f);
+      spawnInitialUnitNear(enemyBasePos, Faction.ENEMY, miner, -2.8f, -3.2f);
+      spawnInitialUnitNear(enemyBasePos, Faction.ENEMY, miner, -3.8f, -3.8f);
+      spawnInitialUnitNear(enemyBasePos, Faction.ENEMY, rifle, -4.6f, -4.3f);
+      spawnInitialUnitNear(enemyBasePos, Faction.ENEMY, rocket, -5.5f, -5.1f);
+    }
+  }
+
+  /**
+   * If the loaded map JSON lists initialUnits, spawn them with tile-based dedup + radius clearance
+   * (mirrors editor free-placement rules). Returns true if map units were used.
+   */
+  boolean spawnInitialUnitsFromMapJson() {
+    JSONObject root = loadJSONObject(defaultMapJson);
+    if (root == null) {
+      return false;
+    }
+    JSONArray arr = root.getJSONArray("initialUnits");
+    if (arr == null || arr.size() <= 0) {
+      return false;
+    }
+    float ts = map.tileSize;
+    ArrayList<String> usedTileKeys = new ArrayList<String>();
+    for (int i = 0; i < arr.size(); i++) {
+      JSONObject o = arr.getJSONObject(i);
+      String fid = o.getString("faction", "player");
+      String uid = o.getString("type", "rifleman");
+      Faction fac = "enemy".equals(fid) ? Faction.ENEMY : Faction.PLAYER;
+      UnitDef def = getUnitDef(uid);
+      if (def == null) {
+        continue;
+      }
+      float wcx;
+      float wcy;
+      if (o.hasKey("worldCX") && o.hasKey("worldCY")) {
+        wcx = o.getFloat("worldCX");
+        wcy = o.getFloat("worldCY");
+      } else {
+        int tx = o.getInt("x", 0);
+        int ty = o.getInt("y", 0);
+        wcx = (tx + 0.5f) * ts;
+        wcy = (ty + 0.5f) * ts;
+      }
+      PVector desired = new PVector(wcx, wcy);
+      PVector safe = findNearestOpenSlotForMapUnit(desired, def.radius, usedTileKeys);
+      units.add(new Unit(safe.x, safe.y, fac, def));
+    }
+    return true;
+  }
+
+  PVector findNearestOpenSlotForMapUnit(PVector desiredWorld, float unitRadius, ArrayList<String> usedTileKeys) {
+    PVector base = findNearestOpenSlot(desiredWorld, usedTileKeys);
+    float pad = 3;
+    if (isWorldSpawnFreeOfUnits(base.x, base.y, unitRadius, pad)) {
+      int tx = map.toTileX(base.x);
+      int ty = map.toTileY(base.y);
+      usedTileKeys.add(tx + ":" + ty);
+      return base;
+    }
+    float ts = map.tileSize;
+    int cx = map.toTileX(desiredWorld.x);
+    int cy = map.toTileY(desiredWorld.y);
+    for (int r = 0; r < 14; r++) {
+      for (int dy = -r; dy <= r; dy++) {
+        for (int dx = -r; dx <= r; dx++) {
+          if (r > 0 && abs(dx) != r && abs(dy) != r) {
+            continue;
+          }
+          int nx = cx + dx;
+          int ny = cy + dy;
+          if (!pathfinder.isWalkable(nx, ny, buildings)) {
+            continue;
+          }
+          String k = nx + ":" + ny;
+          if (usedTileKeys.contains(k)) {
+            continue;
+          }
+          float px = (nx + 0.5f) * ts;
+          float py = (ny + 0.5f) * ts;
+          if (!isWorldSpawnFreeOfUnits(px, py, unitRadius, pad)) {
+            continue;
+          }
+          usedTileKeys.add(k);
+          return new PVector(px, py);
+        }
+      }
+    }
+    usedTileKeys.add(map.toTileX(base.x) + ":" + map.toTileY(base.y));
+    return base;
   }
 
   Building addInitialBuildingAt(BuildingDef def, Faction faction, float desiredX, float desiredY, int paddingTiles) {
@@ -618,7 +706,7 @@ class GameState {
 
   void loadMapResources() {
     goldMines.clear();
-    JSONObject mapRoot = loadJSONObject("map_test.json");
+    JSONObject mapRoot = loadJSONObject(defaultMapJson);
     if (mapRoot == null) {
       return;
     }
