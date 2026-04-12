@@ -6,7 +6,7 @@ void settings() {
 }
 
 void setup() {
-  game = new GameEngine(width, height);
+  game = new GameEngine(width, height, args);
   surface.setResizable(false);
   rectMode(CORNER);
   textAlign(LEFT, TOP);

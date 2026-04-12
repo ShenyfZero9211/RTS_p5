@@ -112,6 +112,161 @@ class GameState {
   /** Map JSON in sketch `data/` folder (e.g. exported from the map editor). */
   String defaultMapJson = "map_001.json";
 
+  /**
+   * When true, {@link GameEngine} skips the main menu after setup. Set from {@code --DirectEnter},
+   * env {@code RTS_DIRECT_ENTER}, or defaults when a launch map is supplied (see {@link #applySketchArguments}).
+   */
+  boolean autoStartPlayFromLaunch = false;
+
+  /**
+   * Sketch args (when forwarded) and env {@code RTS_MAP_FILE} / {@code RTS_DIRECT_ENTER}:
+   * map via {@code --map=}, {@code --map}, or bare {@code *.json}; direct enter via {@code --DirectEnter=true|false}.
+   * Env is used when args omit the map (typical for {@code cli --run}).
+   */
+  void applySketchArguments(String[] sketchArgs) {
+    autoStartPlayFromLaunch = false;
+    String mapArg = null;
+    Boolean directEnterArg = null;
+
+    if (sketchArgs != null) {
+      for (int i = 0; i < sketchArgs.length; i++) {
+        String raw = sketchArgs[i];
+        if (raw == null) {
+          continue;
+        }
+        String a = trim(raw);
+        if (a.length() <= 0) {
+          continue;
+        }
+        if ((a.charAt(0) == '"' && a.charAt(a.length() - 1) == '"')
+          || (a.charAt(0) == '\'' && a.charAt(a.length() - 1) == '\'')) {
+          a = a.substring(1, a.length() - 1);
+        }
+        String aLow = a.toLowerCase();
+        if (aLow.startsWith("--directenter=")) {
+          directEnterArg = parseDirectEnterTriState(a.substring("--directenter=".length()));
+          continue;
+        }
+        if (aLow.equals("-directenter") || aLow.equals("--directenter")) {
+          if (i + 1 < sketchArgs.length) {
+            directEnterArg = parseDirectEnterTriState(sketchArgs[i + 1]);
+            i++;
+          }
+          continue;
+        }
+        if (mapArg == null && a.startsWith("--map=")) {
+          String v = trim(a.substring(6));
+          if (v.length() > 0) {
+            mapArg = v;
+          }
+          continue;
+        }
+        if (mapArg == null && (a.equals("-map") || a.equals("--map"))) {
+          if (i + 1 < sketchArgs.length) {
+            String v = trim(sketchArgs[i + 1]);
+            if (v.length() > 0) {
+              mapArg = v;
+            }
+            i++;
+          }
+          continue;
+        }
+        if (mapArg == null && a.length() > 5 && a.endsWith(".json") && a.charAt(0) != '-') {
+          mapArg = a;
+        }
+      }
+    }
+
+    boolean mapFromArgs = false;
+    boolean mapFromEnv = false;
+    if (mapArg != null && trim(mapArg).length() > 0) {
+      setDefaultMapFromCliValue(mapArg);
+      mapFromArgs = true;
+    } else {
+      String envMap = java.lang.System.getenv("RTS_MAP_FILE");
+      if (envMap != null) {
+        envMap = trim(envMap);
+        if (envMap.length() > 0) {
+          setDefaultMapFromCliValue(envMap);
+          mapFromEnv = true;
+        }
+      }
+    }
+
+    if (!mapFromArgs && !mapFromEnv) {
+      return;
+    }
+
+    if (directEnterArg != null) {
+      autoStartPlayFromLaunch = directEnterArg.booleanValue();
+    } else if (mapFromEnv) {
+      autoStartPlayFromLaunch = directEnterFromEnvWantsAutoStart();
+    } else {
+      autoStartPlayFromLaunch = true;
+    }
+  }
+
+  /** null = not specified; else parsed boolean. */
+  Boolean parseDirectEnterTriState(String raw) {
+    if (raw == null) {
+      return null;
+    }
+    String v = trim(raw).toLowerCase();
+    if (v.length() <= 0) {
+      return null;
+    }
+    if (v.equals("0") || v.equals("false") || v.equals("no")) {
+      return Boolean.FALSE;
+    }
+    if (v.equals("1") || v.equals("true") || v.equals("yes")) {
+      return Boolean.TRUE;
+    }
+    return null;
+  }
+
+  /** When map came from env only: absent/empty RTS_DIRECT_ENTER means true; 0/false/no means false. */
+  boolean directEnterFromEnvWantsAutoStart() {
+    String d = java.lang.System.getenv("RTS_DIRECT_ENTER");
+    if (d == null) {
+      return true;
+    }
+    d = trim(d).toLowerCase();
+    if (d.length() <= 0) {
+      return true;
+    }
+    if (d.equals("0") || d.equals("false") || d.equals("no")) {
+      return false;
+    }
+    return true;
+  }
+
+  void setDefaultMapFromCliValue(String v) {
+    v = trim(v);
+    if (v.length() <= 0) {
+      return;
+    }
+    java.io.File asGiven = new java.io.File(v);
+    if (asGiven.isAbsolute()) {
+      defaultMapJson = asGiven.getAbsolutePath();
+      println("[RTS] Map from args (absolute): " + defaultMapJson);
+      return;
+    }
+    String fromSketch = sketchPath(v);
+    if (new java.io.File(fromSketch).isFile()) {
+      defaultMapJson = fromSketch;
+      println("[RTS] Map from args (sketch-relative): " + defaultMapJson);
+      return;
+    }
+    String dataNamed = sketchPath("data" + java.io.File.separator + v);
+    if (new java.io.File(dataNamed).isFile()) {
+      defaultMapJson = new java.io.File(v).getName();
+      println("[RTS] Map from args (data/" + defaultMapJson + ")");
+      return;
+    }
+    defaultMapJson = v;
+    println("[RTS] Map from args (data/ name): " + defaultMapJson);
+  }
+
   GameState(int screenW, int screenH) {
     this.screenW = screenW;
     this.screenH = screenH;

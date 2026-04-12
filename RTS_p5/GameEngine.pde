@@ -18,12 +18,13 @@ class GameEngine {
   String enemyAiProfile = "balanced";
   BenchmarkRuntime benchmarkRuntime;
 
-  GameEngine(int screenW, int screenH) {
+  GameEngine(int screenW, int screenH, String[] sketchArgs) {
     if (i18n == null) {
       i18n = new Localization();
       i18n.loadUserSettings();
     }
     state = new GameState(screenW, screenH);
+    state.applySketchArguments(sketchArgs);
     mainMenu = new MainMenuSystem();
     timeSystem = new TimeSystem();
     timeSystem.loadFromUiJson();
@@ -36,7 +37,13 @@ class GameEngine {
     }
     surface.setTitle(tr("app.title"));
     lastMillis = millis();
-    if (benchmarkRuntime != null && benchmarkRuntime.enabled) {
+    if (state != null && state.autoStartPlayFromLaunch) {
+      if (startNewGame()) {
+        mode = AppMode.PLAYING;
+      } else {
+        println("[RTS] Map launch failed: " + (state.lastStartError != null ? state.lastStartError : ""));
+      }
+    } else if (benchmarkRuntime != null && benchmarkRuntime.enabled) {
       runtimeProfilingOverlay = true;
       benchmarkRuntime.beginIfNeeded(this);
     }

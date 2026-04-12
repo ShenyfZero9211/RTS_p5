@@ -33,6 +33,8 @@ Processing 要求：**草图文件夹名与主 `.pde` 文件名一致**；同目
 | `build.ps1` | 将主草图编译导出到 `_cli_build_out` | `--sketch=...` `--output=...` `--force` `--build` |
 | `smoke.ps1` | 调用 `build.ps1` 并检查输出目录是否存在可运行产物 | 轻量 CI / 改代码后快速验收 |
 | `map-editor.ps1` | 运行地图编辑器草图 | `--sketch=...\map_editor` `--run` |
+| `run-game.ps1` | 启动主游戏并指定地图；可选直进对局 | **`RTS_MAP_FILE`**（绝对路径）、**`RTS_DIRECT_ENTER`**（`1`/`0`，默认直进）；仍附带 `--map=` / `--DirectEnter=`（宿主若转发 `args` 则草图内也生效） |
+| `rts.ps1` | 同上，**位置参数地图** + 可选 **`-DirectEnter`** | 内部调用 `run-game.ps1` |
 | `benchmark.ps1` 等 | 性能基准与报告流水线 | 见 `README.md`、`docs/benchmark_workflow.md` |
 
 ### 常用命令（在仓库根目录）
@@ -47,6 +49,29 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\smoke.ps1
+```
+
+指定地图启动主游戏（`RTS_p5/data` 下的文件名，或绝对路径；可选先编译）。默认 **`RTS_DIRECT_ENTER=1`**：跳过主菜单直进对局；**`-DirectEnter:$false`** 时只应用地图，仍显示主菜单。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run-game.ps1 -MapFile map_001.json
+powershell -ExecutionPolicy Bypass -File .\run-game.ps1 -MapFile map_001.json -DirectEnter:$false
+powershell -ExecutionPolicy Bypass -File .\run-game.ps1 -MapFile map_stress_template.json -Build
+```
+
+仅用手动 `cli --run` 时，请设置环境变量（**`RTS_MAP_FILE` 必填**才会换图；**`RTS_DIRECT_ENTER`** 缺省等同 `1`）。一行示例：
+
+```powershell
+$env:RTS_MAP_FILE = "D:\projects\cursor\RTS_p5\RTS_p5\data\map_001.json"; $env:RTS_DIRECT_ENTER = "1"; & "D:\Program Files\Processing\Processing.exe" cli "--sketch=D:\projects\cursor\RTS_p5\RTS_p5" "--run" "--map=map_001.json" "--DirectEnter=true"
+```
+
+若将来 Processing 将尾随参数传入草图 `args`，`GameState` 会解析 **`--map=`** 与 **`--DirectEnter=true|false`**；当前仍以 **env 为准**。
+
+更短：仓库根目录的 **`rts.ps1`**（第一个参数为地图，`data/` 下文件名或绝对路径均可）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File D:\projects\cursor\RTS_p5\rts.ps1 map_001.json
+powershell -ExecutionPolicy Bypass -File D:\projects\cursor\RTS_p5\rts.ps1 map_001.json -DirectEnter:$false
 ```
 
 地图编辑器（需图形界面）：

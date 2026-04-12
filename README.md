@@ -2,7 +2,7 @@
 
 A Processing-based RTS prototype inspired by classic games (StarCraft / Red Alert), with a refactored `GameEngine` architecture, configurable benchmark tooling, and scriptable performance workflows.
 
-**Current release:** [v0.2.9](https://github.com/ShenyfZero9211/RTS_p5/releases/tag/v0.2.9)
+**Current release:** [v0.3.2](https://github.com/ShenyfZero9211/RTS_p5/releases/tag/v0.3.2)
 
 ![RTS gameplay showcase](assets/screenshots/benchmark-manual-session.png)
 
@@ -37,6 +37,8 @@ A Processing-based RTS prototype inspired by classic games (StarCraft / Red Aler
   - `build.ps1` - build sketch through Processing CLI
   - `map-editor.ps1` - run the map editor (`cli --run`)
   - `smoke.ps1` - lightweight build smoke check
+  - `run-game.ps1` - `-MapFile`, optional **`-DirectEnter:$false`** (sets **`RTS_MAP_FILE`** + **`RTS_DIRECT_ENTER`**; appends `--map=` / `--DirectEnter=` for CLI); optional `-Build`
+  - `rts.ps1` - wrapper: `.\rts.ps1 map_001.json` or `.\rts.ps1 map_001.json -DirectEnter:$false`
   - `benchmark.ps1` - single benchmark run
   - `benchmark-matrix.ps1` - profile x intensity batch benchmark
   - `benchmark-compare.ps1` - latest-vs-previous grouped comparison
@@ -140,6 +142,12 @@ python .\tools\benchmark_dashboard.py
   - `docs/processing_project_playbook.md` (generic template)
 
 ## Changelog (recent)
+
+### v0.3.2
+
+- Launch maps from CLI or scripts: sketch `args` support `--map=` and `--DirectEnter=true|false`; environment fallbacks **`RTS_MAP_FILE`** and **`RTS_DIRECT_ENTER`** when the host does not forward args.
+- **`run-game.ps1`** and **`rts.ps1`**: pick a `data/` map, optional `-DirectEnter:$false` to stay on the main menu, optional `-Build`.
+- `GameEngine` / `GameState`: optional auto-start into `PLAYING` when a launch map is supplied.
 
 ### v0.2.9
 
