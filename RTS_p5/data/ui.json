@@ -25,7 +25,7 @@
   "enemyAiAttackMinArmy": 7,
   "enemyAiRifleRatio": 0.52,
   "enemyAiRocketRatio": 0.3,
-  "enemyAiDebug": false,
+  "enemyAiDebug": true,
   "playerStartCredits": 2000,
   "enemyStartCredits": 100,
   "defaultCreditCap": 2000,

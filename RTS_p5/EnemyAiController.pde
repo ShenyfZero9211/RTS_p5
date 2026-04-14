@@ -60,9 +60,12 @@ class EnemyAiController {
       phase = ATTACK;
     }
 
-    runEconomy(gs, enemyMines, enemyMiners);
-    runTech(gs, enemyWarehouses, enemyBarracks);
-    runDefense(gs, enemyTowers);
+    // Benchmark owns base layout; skip AI building queues so destroyed structures are not replaced.
+    if (!gs.benchmarkScenarioActive) {
+      runEconomy(gs, enemyMines, enemyMiners);
+      runTech(gs, enemyWarehouses, enemyBarracks);
+      runDefense(gs, enemyTowers);
+    }
     runProduction(gs, enemyMiners, enemyCombat);
 
     PVector strategicTarget = chooseStrategicTarget(gs);

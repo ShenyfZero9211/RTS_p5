@@ -30,6 +30,8 @@ class Localization {
     put("menu.back.sub", "回到主菜单", "Back to main");
     put("menu.resume", "返回游戏", "Resume game");
     put("menu.resume.sub", "继续当前对局", "Continue current match");
+    put("menu.returnMain", "返回主菜单", "Return to main menu");
+    put("menu.returnMain.sub", "结束本局并回到开始界面", "End match and return to start screen");
     put("menu.settings.title", "设置（仅本次会话，语言会持久化）", "Settings (session, language persists)");
     put("menu.fog.toggle", "切换战争迷雾", "Toggle fog");
     put("menu.fog.toggle.sub", "预览开关", "Preview toggle");
@@ -42,6 +44,15 @@ class Localization {
     put("menu.lang.en", "语言：英文", "Language: English");
     put("menu.lang.label", "语言", "Language");
     put("menu.persist.hint", "语言保存到 data/settings_user.json", "Language is saved to data/settings_user.json");
+    put("menu.mapSelect.title", "选择地图", "Choose map");
+    put("menu.mapSelect.subtitle", "从 data 文件夹读取的地图 JSON", "Map JSON files found in data/");
+    put("menu.mapSelect.empty", "未找到有效地图（需含 rows/width/height/tileSize）", "No valid maps (need rows, width, height, tileSize)");
+    put("menu.mapSelect.start", "开始", "Start");
+    put("menu.mapSelect.start.sub", "使用所选地图开局", "Start with selected map");
+    put("menu.mapSelect.back", "返回", "Back");
+    put("menu.mapSelect.back.sub", "回到主菜单", "Return to main menu");
+    put("menu.mapSelect.up", "▲", "▲");
+    put("menu.mapSelect.down", "▼", "▼");
 
     put("overlay.defeat", "被击败", "DEFEAT");
     put("overlay.victory", "胜利", "VICTORY");

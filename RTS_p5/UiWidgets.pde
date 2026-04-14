@@ -140,6 +140,7 @@ class UiWidgets {
       baseFill = color(34, 38, 48);
       strokeCol = color(120, 140, 175);
     }
+    boolean sel = b.selected && b.enabled;
     if (!b.enabled) {
       baseFill = color(38, 38, 38);
       strokeCol = color(55, 55, 55);
@@ -148,7 +149,12 @@ class UiWidgets {
       if (b.style == 1) {
         baseFill = color(85, 110, 150);
       }
-      strokeCol = color(170, 255, 170);
+      if (sel) {
+        baseFill = color(72, 118, 98);
+        strokeCol = color(195, 255, 205);
+      } else {
+        strokeCol = color(170, 255, 170);
+      }
       strokeW = 2;
     } else if (b.hovered) {
       baseFill = color(62, 62, 62);
@@ -166,6 +172,15 @@ class UiWidgets {
         strokeCol = color(180, 200, 235);
       }
       strokeW = (b.style == 0 && b.emphasisArmed) ? 2 : 1;
+      if (sel) {
+        baseFill = color(38, 68, 84);
+        strokeCol = color(130, 235, 215);
+        strokeW = 2;
+      }
+    } else if (sel) {
+      baseFill = color(22, 42, 56);
+      strokeCol = color(62, 188, 168);
+      strokeW = 2;
     }
     if (b.emphasisArmed && b.enabled && !b.pressed) {
       strokeCol = color(130, 240, 130);
@@ -277,6 +292,8 @@ class UiHitButton {
   int style;
   boolean hovered;
   boolean pressed;
+  /** Map list row etc.: distinct from hover/press. */
+  boolean selected;
   boolean emphasisArmed;
 }
 

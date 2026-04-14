@@ -593,6 +593,79 @@ class GameState {
         return false;
       }
     }
+    if (!buildingFootprintRespectsGoldClearance(def, tx, ty)) {
+      return false;
+    }
+    if (!buildingFootprintClearOfUnits(def, tx, ty)) {
+      return false;
+    }
+    return true;
+  }
+
+  boolean circleIntersectsAxisRect(float cx, float cy, float r, float rx, float ry, float rw, float rh) {
+    float nx = constrain(cx, rx, rx + rw);
+    float ny = constrain(cy, ry, ry + rh);
+    float dx = cx - nx;
+    float dy = cy - ny;
+    return dx * dx + dy * dy < r * r;
+  }
+
+  /** Building footprint must not overlap any living unit's collision circle. */
+  boolean buildingFootprintClearOfUnits(BuildingDef def, int tx, int ty) {
+    if (def == null || map == null || units == null) {
+      return true;
+    }
+    float ts = map.tileSize;
+    float rx = tx * ts;
+    float ry = ty * ts;
+    float rw = def.tileW * ts;
+    float rh = def.tileH * ts;
+    float pad = 2.0f;
+    for (Unit u : units) {
+      if (u == null || u.hp <= 0) {
+        continue;
+      }
+      if (circleIntersectsAxisRect(u.pos.x, u.pos.y, u.radius + pad, rx, ry, rw, rh)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * No building footprint may overlap an expanded box around any active gold vein tile
+   * (vein tile is unwalkable; buffer keeps structures off approach tiles for miners).
+   */
+  boolean buildingFootprintRespectsGoldClearance(BuildingDef def, int tx, int ty) {
+    if (def == null || map == null || goldMines == null || goldMines.size() <= 0) {
+      return true;
+    }
+    return buildingRectRespectsGoldClearance(tx, ty, def.tileW, def.tileH);
+  }
+
+  boolean buildingRectRespectsGoldClearance(int tx, int ty, int tw, int th) {
+    if (map == null || goldMines == null || goldMines.size() <= 0) {
+      return true;
+    }
+    float ts = map.tileSize;
+    float bLeft = tx * ts;
+    float bTop = ty * ts;
+    float bRight = (tx + tw) * ts;
+    float bBottom = (ty + th) * ts;
+    float clearance = ts * 2.5f;
+    for (GoldMine g : goldMines) {
+      if (g.amount <= 0) {
+        continue;
+      }
+      float gLeft = g.tx * ts - clearance;
+      float gTop = g.ty * ts - clearance;
+      float gRight = (g.tx + 1) * ts + clearance;
+      float gBottom = (g.ty + 1) * ts + clearance;
+      boolean overlap = !(bRight <= gLeft || bLeft >= gRight || bBottom <= gTop || bTop >= gBottom);
+      if (overlap) {
+        return false;
+      }
+    }
     return true;
   }
 
@@ -923,6 +996,9 @@ class GameState {
       }
       goldMines.add(new GoldMine(tx, ty, amount));
     }
+    if (map != null) {
+      map.syncGoldVeinWalkBlocking(goldMines);
+    }
   }
 
   BuildingDef getBuildingDef(String id) {
@@ -949,6 +1025,7 @@ class GameState {
     if (map == null) {
       return;
     }
+    map.syncGoldVeinWalkBlocking(goldMines);
     if (gameEnded) {
       int t0 = millis();
       input.update(dt);
@@ -1054,7 +1131,7 @@ class GameState {
       renderDebugPaths();
     }
 
-    buildSystem.renderPreview(camera, map, buildings, canPlaceSelectedBuildInExploredArea());
+    buildSystem.renderPreview(camera, map, buildings, canPlaceSelectedBuildInExploredArea(), this);
     input.renderSelectionBox();
     noClip();
     popMatrix();
@@ -1416,18 +1493,32 @@ class GameState {
         if (d >= minD) {
           continue;
         }
-        boolean sameTeam = a.faction == b.faction;
-        float baseIntensity = sameTeam ? 0.5 : 0.14;
-        if (a.state == UnitState.ATTACKING || b.state == UnitState.ATTACKING) {
-          baseIntensity *= sameTeam ? 0.5 : 0.45;
+        boolean aMine = a.anchoredDuringMining();
+        boolean bMine = b.anchoredDuringMining();
+        if (aMine && bMine) {
+          continue;
         }
-        float push = (minD - d) * baseIntensity;
         delta.normalize();
-        PVector pushVec = PVector.mult(delta, push);
-        a.pos.sub(pushVec);
-        b.pos.add(pushVec);
-        clampUnitToWorld(a);
-        clampUnitToWorld(b);
+        float gap = minD - d;
+        if (aMine) {
+          b.pos.add(PVector.mult(delta, gap));
+          clampUnitToWorld(b);
+        } else if (bMine) {
+          a.pos.sub(PVector.mult(delta, gap));
+          clampUnitToWorld(a);
+        } else {
+          boolean sameTeam = a.faction == b.faction;
+          float baseIntensity = sameTeam ? 0.5 : 0.14;
+          if (a.state == UnitState.ATTACKING || b.state == UnitState.ATTACKING) {
+            baseIntensity *= sameTeam ? 0.5 : 0.45;
+          }
+          float push = gap * baseIntensity;
+          PVector pushVec = PVector.mult(delta, push);
+          a.pos.sub(pushVec);
+          b.pos.add(pushVec);
+          clampUnitToWorld(a);
+          clampUnitToWorld(b);
+        }
       }
     }
   }
@@ -2061,25 +2152,31 @@ class GameState {
   }
 
   Building findNearestDropoffBuilding(PVector from, Faction faction) {
-    Building best = null;
-    float bestD = 1e9;
+    Building bestDrop = null;
+    float bestDDrop = 1e9;
+    Building bestBase = null;
+    float bestDBase = 1e9;
     for (Building b : buildings) {
       if (b.faction != faction || !b.completed) {
         continue;
       }
       BuildingDef def = getBuildingDef(b.buildingType);
-      if (def == null || !def.isDropoff) {
+      if (def == null) {
         continue;
       }
       float cx = b.pos.x + b.tileW * map.tileSize * 0.5;
       float cy = b.pos.y + b.tileH * map.tileSize * 0.5;
       float d = dist(from.x, from.y, cx, cy);
-      if (d < bestD) {
-        bestD = d;
-        best = b;
+      if (def.isDropoff && d < bestDDrop) {
+        bestDDrop = d;
+        bestDrop = b;
+      }
+      if (def.isMainBase && d < bestDBase) {
+        bestDBase = d;
+        bestBase = b;
       }
     }
-    return best;
+    return bestDrop != null ? bestDrop : bestBase;
   }
 
   void renderGoldMines() {

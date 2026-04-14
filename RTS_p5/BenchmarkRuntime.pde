@@ -15,6 +15,10 @@ class BenchmarkRuntime {
   boolean manualControl = false;
   String manualEndKey = "F10";
   boolean manualAutoFrontline = false;
+  /** Runtime toggle (W); initialized from JSON in beginIfNeeded. */
+  boolean manualAutoFrontlineRuntime = false;
+  long lastManualReinforceMs = 0;
+  static final int MANUAL_REINFORCE_COOLDOWN_MS = 900;
   boolean manualFinishRequested = false;
   float reinforceIntervalSec = -1;
   int reinforceCountPerFaction = -1;
@@ -71,15 +75,18 @@ class BenchmarkRuntime {
     if (!enabled || started || engine == null) return;
     started = true;
     if (autoStartGame && engine.mode == AppMode.MENU) {
+      // benchmark.ps1 copies the chosen template into data/map_test.json before --run
+      engine.state.defaultMapJson = "map_test.json";
       if (engine.startNewGame()) {
         engine.state.prepareBenchmarkBattlefield(battleIntensity, troopProfile);
         if (reinforceIntervalSec > 0.5) {
           engine.state.benchmarkReinforceInterval = reinforceIntervalSec;
           engine.state.benchmarkReinforceTimer = reinforceIntervalSec;
         }
-        if (reinforceCountPerFaction > 0) {
+        if (reinforceCountPerFaction >= 0) {
           engine.state.benchmarkReinforceCount = reinforceCountPerFaction;
         }
+        manualAutoFrontlineRuntime = manualAutoFrontline;
         engine.mode = AppMode.PLAYING;
       } else {
         println("[BENCH-RUNTIME] failed to start game");
@@ -100,7 +107,7 @@ class BenchmarkRuntime {
       driveCamera(engine.state, elapsed);
       engine.state.sustainBenchmarkFrontline(rawFrameMs / 1000.0);
     } else {
-      if (manualAutoFrontline) {
+      if (manualAutoFrontlineRuntime) {
         // Optional: keep AI frontline pressure while still allowing manual player control.
         engine.state.sustainBenchmarkFrontline(rawFrameMs / 1000.0);
       } else {
@@ -211,6 +218,30 @@ class BenchmarkRuntime {
 
   boolean isManualControlActive() {
     return enabled && started && !finished && manualControl;
+  }
+
+  void toggleManualAutoFrontline(GameState gs) {
+    if (!isManualControlActive() || gs == null) {
+      return;
+    }
+    manualAutoFrontlineRuntime = !manualAutoFrontlineRuntime;
+    gs.orderLabel = manualAutoFrontlineRuntime
+      ? "BENCH auto frontline ON (W: toggle)"
+      : "BENCH auto frontline OFF (W: toggle)";
+  }
+
+  /** Same as timed reinforcement wave; respects cooldown. Returns false if throttled. */
+  boolean tryManualReinforcement(GameState gs) {
+    if (!isManualControlActive() || gs == null || !gs.benchmarkScenarioActive) {
+      return false;
+    }
+    long now = millis();
+    if (now - lastManualReinforceMs < MANUAL_REINFORCE_COOLDOWN_MS) {
+      return false;
+    }
+    lastManualReinforceMs = now;
+    gs.spawnBenchmarkReinforcements();
+    return true;
   }
 
   float remainingSeconds() {

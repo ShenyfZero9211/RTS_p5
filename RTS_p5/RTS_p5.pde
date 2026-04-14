@@ -31,10 +31,25 @@ void mouseDragged() {
   game.onMouseDragged(mouseX, mouseY, mouseButton);
 }
 
+void mouseMoved() {
+  if (game != null) {
+    game.onMouseMoved(mouseX, mouseY);
+  }
+}
+
+void mouseEntered(processing.event.MouseEvent event) {
+  if (game != null) {
+    game.onMouseEntered();
+  }
+}
+
 void keyPressed() {
   game.onKeyPressed(key, keyCode);
 }
 
 void mouseWheel(processing.event.MouseEvent event) {
-  game.onMouseWheel(event.getCount(), mouseX, mouseY);
+  if (game == null) {
+    return;
+  }
+  game.onMouseWheel((float) event.getCount(), event.getX(), event.getY());
 }

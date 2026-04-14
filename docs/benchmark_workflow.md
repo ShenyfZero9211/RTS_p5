@@ -4,6 +4,7 @@ Use this workflow for Phase B performance regression checks.
 
 ## Assets
 - Stress map template: `RTS_p5/data/map_stress_template.json`
+- Manual arena map: `RTS_p5/data/map_benchmark_manual.json` (wider lanes, fewer obstacles than stress template)
 - Benchmark script: `benchmark.ps1`
 - Output CSV: `benchmarks/benchmark_log.csv`
 - Runtime metrics CSV: `benchmarks/runtime_metrics.csv` (repo root; gitignored)
@@ -26,6 +27,20 @@ Manual control benchmark (script launched):
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\benchmark.ps1 -RunTag manual-session -ManualControl -ManualEndKey F10 -ManualAutoFrontline -DurationSec 180 -WarmupSec 10 -BattleIntensity heavy -TroopProfile balanced
 ```
+
+Manual map + hotkeys (open arena `map_benchmark_manual.json`; **set `-RunTimeoutSec` above `-DurationSec`** so the script does not kill the game early):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\benchmark.ps1 -MapFile map_benchmark_manual.json -RunTag manual-arena -ManualControl -ManualEndKey F10 -DurationSec 300 -WarmupSec 10 -BattleIntensity heavy -TroopProfile balanced -RunTimeoutSec 400
+```
+
+During **manual** benchmark only:
+
+- **Q**: spawn one reinforcement wave (same as the timed wave), **~0.9s cooldown**; status line shows success or cooldown.
+- **W**: toggle **auto frontline** on/off at runtime (side panel shows `ON`/`OFF`); overrides training hotkeys **Q/W** for that session.
+- **F10**: finish benchmark / request write (unchanged).
+
+Optional: mostly **Q-only** reinforcements — set a huge interval, e.g. `-ReinforceIntervalSec 99999`. To disable timed wave size from defaults, `-ReinforceCountPerFaction 0` is supported (no periodic spawns until Q).
 
 Matrix run (all AI profiles):
 

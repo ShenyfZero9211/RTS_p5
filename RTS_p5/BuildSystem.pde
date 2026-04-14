@@ -41,7 +41,7 @@ class BuildSystem {
     return def == null ? 0 : def.cost;
   }
 
-  boolean canPlace(TileMap map, ArrayList<Building> buildings) {
+  boolean canPlace(TileMap map, ArrayList<Building> buildings, GameState gs) {
     BuildingDef def = selectedDef();
     if (def == null) {
       return false;
@@ -64,6 +64,12 @@ class BuildSystem {
         )) {
         return false;
       }
+    }
+    if (gs != null && !gs.buildingFootprintRespectsGoldClearance(def, previewTileX, previewTileY)) {
+      return false;
+    }
+    if (gs != null && !gs.buildingFootprintClearOfUnits(def, previewTileX, previewTileY)) {
+      return false;
     }
     return true;
   }
@@ -92,7 +98,7 @@ class BuildSystem {
     return hasRequiredBuildings(def, buildings, faction);
   }
 
-  boolean queueBuildIfValid(TileMap map, ArrayList<Building> buildings, Faction faction, ResourcePool resources) {
+  boolean queueBuildIfValid(TileMap map, ArrayList<Building> buildings, Faction faction, ResourcePool resources, GameState gs) {
     BuildingDef def = selectedDef();
     if (def == null) {
       lastFailReason = "No blueprint";
@@ -106,7 +112,7 @@ class BuildSystem {
       lastFailReason = "Prerequisite missing";
       return false;
     }
-    if (!canPlace(map, buildings)) {
+    if (!canPlace(map, buildings, gs)) {
       lastFailReason = "Invalid placement";
       return false;
     }
@@ -160,11 +166,11 @@ class BuildSystem {
     return constrain(currentJob.target.buildProgress / currentJob.target.buildTime, 0, 1);
   }
 
-  void renderPreview(Camera camera, TileMap map, ArrayList<Building> buildings, boolean exploredOk) {
+  void renderPreview(Camera camera, TileMap map, ArrayList<Building> buildings, boolean exploredOk, GameState gs) {
     if (!active) {
       return;
     }
-    boolean ok = canPlace(map, buildings) && exploredOk;
+    boolean ok = canPlace(map, buildings, gs) && exploredOk;
     PVector screen = camera.worldToScreen(previewTileX * map.tileSize, previewTileY * map.tileSize);
     noFill();
     strokeWeight(2);

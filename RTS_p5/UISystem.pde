@@ -161,6 +161,10 @@ class UISystem {
           "BENCH MANUAL  " + game.benchmarkRuntime.manualEndKey + " finish  remain " + nf(game.benchmarkRuntime.remainingSeconds(), 1, 1) + "s",
           contentX, cy, contentW, 12
         );
+        cy = uiWidgets.drawLineClamped(
+          "Q = reinforce wave   W = auto frontline " + (game.benchmarkRuntime.manualAutoFrontlineRuntime ? "ON" : "OFF"),
+          contentX, cy, contentW, 12
+        );
       }
       fill(230);
     }

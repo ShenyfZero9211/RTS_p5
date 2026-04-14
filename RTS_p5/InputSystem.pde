@@ -84,7 +84,7 @@ class InputSystem {
           state.buildSystem.lastFailReason = tr("ui.buildUnexplored");
           return;
         }
-        boolean ok = state.buildSystem.queueBuildIfValid(state.map, state.buildings, state.activeFaction, state.resources);
+        boolean ok = state.buildSystem.queueBuildIfValid(state.map, state.buildings, state.activeFaction, state.resources, state);
         if (ok) {
           state.cancelBuildPlacement();
           state.orderLabel = tr("order.buildPlaced");
@@ -270,6 +270,20 @@ class InputSystem {
         }
       }
       return;
+    }
+    if (game != null && game.benchmarkRuntime != null && game.benchmarkRuntime.isManualControlActive()) {
+      if (key == 'q' || key == 'Q') {
+        if (game.benchmarkRuntime.tryManualReinforcement(state)) {
+          state.orderLabel = "BENCH reinforcement wave (Q)";
+        } else {
+          state.orderLabel = "BENCH Q on cooldown (~0.9s)";
+        }
+        return;
+      }
+      if (key == 'w' || key == 'W') {
+        game.benchmarkRuntime.toggleManualAutoFrontline(state);
+        return;
+      }
     }
     if (key == 'q' || key == 'Q') {
       state.tryTrainHotkey(0);

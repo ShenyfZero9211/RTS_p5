@@ -37,15 +37,17 @@ class GameEngine {
     }
     surface.setTitle(tr("app.title"));
     lastMillis = millis();
-    if (state != null && state.autoStartPlayFromLaunch) {
+    // Benchmark must run before RTS_MAP_FILE / args auto-start: otherwise startNewGame() uses
+    // defaultMapJson from env and skips beginIfNeeded, so map_test.json (written by benchmark.ps1) is never loaded.
+    if (benchmarkRuntime != null && benchmarkRuntime.enabled) {
+      runtimeProfilingOverlay = true;
+      benchmarkRuntime.beginIfNeeded(this);
+    } else if (state != null && state.autoStartPlayFromLaunch) {
       if (startNewGame()) {
         mode = AppMode.PLAYING;
       } else {
         println("[RTS] Map launch failed: " + (state.lastStartError != null ? state.lastStartError : ""));
       }
-    } else if (benchmarkRuntime != null && benchmarkRuntime.enabled) {
-      runtimeProfilingOverlay = true;
-      benchmarkRuntime.beginIfNeeded(this);
     }
   }
 
@@ -155,11 +157,27 @@ class GameEngine {
   }
 
   void onMouseDragged(int mx, int my, int button) {
+    if (mode == AppMode.MENU) {
+      mainMenu.onMouseDraggedInMenu(this, mx, my, button);
+      return;
+    }
     if (mode != AppMode.PLAYING || !sessionReady()) {
       return;
     }
     if (state != null) {
       state.onMouseDragged(mx, my, button);
+    }
+  }
+
+  void onMouseMoved(int mx, int my) {
+    if (mode == AppMode.MENU) {
+      mainMenu.onPointerMoveInMenu(mx, my);
+    }
+  }
+
+  void onMouseEntered() {
+    if (mode == AppMode.MENU && mainMenu.inMapSelect) {
+      mainMenu.tryRequestSketchFocus();
     }
   }
 
@@ -182,6 +200,10 @@ class GameEngine {
   }
 
   void onMouseWheel(float amount, int mx, int my) {
+    if (mode == AppMode.MENU) {
+      mainMenu.onMouseWheel(this, amount, mx, my);
+      return;
+    }
     if (mode != AppMode.PLAYING || !sessionReady()) {
       return;
     }

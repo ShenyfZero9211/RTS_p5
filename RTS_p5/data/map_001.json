@@ -1,7 +1,5 @@
 {
   "disableStaticObstacles": true,
-  "testMap": false,
-
   "legend": {
     "R": "rock - walkable rough terrain",
     "B": "block - impassable obstacle",
@@ -35,6 +33,7 @@
       "y": 40
     }
   ],
+  "testMap": false,
   "rows": [
     "................................................",
     "................................................",
@@ -149,6 +148,78 @@
       "y": 37,
       "type": "miner",
       "worldCX": 1500
+    },
+    {
+      "worldCY": 1420,
+      "faction": "enemy",
+      "x": 35,
+      "y": 35,
+      "type": "rifleman",
+      "worldCX": 1420
+    },
+    {
+      "worldCY": 1420,
+      "faction": "enemy",
+      "x": 37,
+      "y": 35,
+      "type": "rifleman",
+      "worldCX": 1500
+    },
+    {
+      "worldCY": 1460,
+      "faction": "enemy",
+      "x": 29,
+      "y": 36,
+      "type": "rocketeer",
+      "worldCX": 1180
+    },
+    {
+      "worldCY": 1460,
+      "faction": "enemy",
+      "x": 31,
+      "y": 36,
+      "type": "rocketeer",
+      "worldCX": 1260
+    },
+    {
+      "worldCY": 220,
+      "faction": "player",
+      "x": 13,
+      "y": 5,
+      "type": "rocketeer",
+      "worldCX": 540
+    },
+    {
+      "worldCY": 300,
+      "faction": "player",
+      "x": 13,
+      "y": 7,
+      "type": "rocketeer",
+      "worldCX": 540
+    },
+    {
+      "worldCY": 180,
+      "faction": "player",
+      "x": 15,
+      "y": 4,
+      "type": "rifleman",
+      "worldCX": 620
+    },
+    {
+      "worldCY": 220,
+      "faction": "player",
+      "x": 15,
+      "y": 5,
+      "type": "rifleman",
+      "worldCX": 620
+    },
+    {
+      "worldCY": 260,
+      "faction": "player",
+      "x": 15,
+      "y": 6,
+      "type": "rifleman",
+      "worldCX": 620
     }
   ],
   "height": 48,

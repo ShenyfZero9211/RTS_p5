@@ -155,6 +155,11 @@ class Unit extends Entity {
     harvestTimer = 0;
   }
 
+  /** In harvestMode 2 the miner is channeling at the vein; do not separate-push this unit. */
+  boolean anchoredDuringMining() {
+    return canHarvest && harvestMode == 2;
+  }
+
   void update(float dt, GameState gs) {
     attackTimer = max(0, attackTimer - dt);
     repathTimer = max(0, repathTimer - dt);
@@ -428,7 +433,8 @@ class Unit extends Entity {
         }
       }
       PVector minePos = assignedMine.worldCenter(gs.map);
-      float mineRange = max(radius + 6, gs.map.tileSize * 0.55);
+      // Vein tile is unwalkable; harvest from adjacent tile needs range past one tile from center.
+      float mineRange = max(radius + 8, gs.map.tileSize * 1.18f);
       float dMine = PVector.dist(pos, minePos);
       if (dMine <= mineRange) {
         harvestMode = 2;
@@ -450,7 +456,7 @@ class Unit extends Entity {
         return;
       }
       PVector minePos = assignedMine.worldCenter(gs.map);
-      float mineRange = max(radius + 6, gs.map.tileSize * 0.58);
+      float mineRange = max(radius + 8, gs.map.tileSize * 1.18f);
       float dMine = PVector.dist(pos, minePos);
       if (dMine > mineRange) {
         harvestMode = 1;
