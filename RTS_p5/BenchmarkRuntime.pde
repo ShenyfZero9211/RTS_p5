@@ -34,6 +34,7 @@ class BenchmarkRuntime {
   float sumFogMs = 0;
   float sumCombatMs = 0;
   float sumAiMs = 0;
+  float sumScriptMs = 0;
   float sumUiMs = 0;
   int subsystemSamples = 0;
 
@@ -124,6 +125,7 @@ class BenchmarkRuntime {
       sumFogMs += engine.state.profileFogMs;
       sumCombatMs += engine.state.profileCombatMs;
       sumAiMs += engine.state.profileAiMs;
+      sumScriptMs += engine.state.profileScriptMs;
       sumUiMs += engine.state.profileUiMs;
       subsystemSamples++;
     }
@@ -159,7 +161,7 @@ class BenchmarkRuntime {
       lines = null;
     }
     ArrayList<String> out = new ArrayList<String>();
-    String header = "run_id,timestamp,map,fixed_step_hz,max_steps_per_frame,duration_sec,warmup_sec,samples,avg_fps,p50_frame_ms,p95_frame_ms,p99_frame_ms,max_frame_ms,avg_input_ms,avg_build_ms,avg_units_ms,avg_fog_ms,avg_combat_ms,avg_ai_ms,avg_ui_ms,enemy_ai_profile,battle_intensity,reinforce_interval_sec,reinforce_count_per_faction,troop_profile,notes";
+    String header = "run_id,timestamp,map,fixed_step_hz,max_steps_per_frame,duration_sec,warmup_sec,samples,avg_fps,p50_frame_ms,p95_frame_ms,p99_frame_ms,max_frame_ms,avg_input_ms,avg_build_ms,avg_units_ms,avg_fog_ms,avg_combat_ms,avg_ai_ms,avg_script_ms,avg_ui_ms,enemy_ai_profile,battle_intensity,reinforce_interval_sec,reinforce_count_per_faction,troop_profile,notes";
     if (lines == null || lines.length <= 0) {
       out.add(header);
     } else {
@@ -199,6 +201,7 @@ class BenchmarkRuntime {
       nf(sumFogMs / div, 1, 3) + "," +
       nf(sumCombatMs / div, 1, 3) + "," +
       nf(sumAiMs / div, 1, 3) + "," +
+      nf(sumScriptMs / div, 1, 3) + "," +
       nf(sumUiMs / div, 1, 3) + "," +
       csv(engine.enemyAiProfile) + "," +
       csv(battleIntensity) + "," +

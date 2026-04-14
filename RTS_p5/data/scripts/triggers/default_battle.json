@@ -1,0 +1,70 @@
+{
+  "triggers": [
+    {
+      "id": "enemy_wave_t120",
+      "preserve": false,
+      "cooldownMs": 0,
+      "priority": 50,
+      "conditions": [
+        {
+          "type": "timeElapsed",
+          "seconds": 120
+        }
+      ],
+      "actions": [
+        {
+          "type": "issueAttackWave",
+          "faction": "enemy",
+          "count": 10
+        },
+        {
+          "type": "showMessage",
+          "message": "Enemy attack wave launched"
+        },
+        {
+          "type": "setSwitch",
+          "key": "wave120Fired",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "player_relief_once",
+      "preserve": false,
+      "cooldownMs": 0,
+      "priority": 60,
+      "conditions": [
+        {
+          "type": "resourceAtMost",
+          "faction": "player",
+          "credits": 220
+        },
+        {
+          "type": "switchIs",
+          "key": "playerReliefGiven",
+          "value": false
+        },
+        {
+          "type": "timeElapsed",
+          "seconds": 20
+        }
+      ],
+      "actions": [
+        {
+          "type": "grantResource",
+          "faction": "player",
+          "credits": 400
+        },
+        {
+          "type": "showMessage",
+          "message": "Relief package delivered (+400 credits)"
+        },
+        {
+          "type": "setSwitch",
+          "key": "playerReliefGiven",
+          "value": true
+        }
+      ]
+    }
+  ]
+}

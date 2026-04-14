@@ -138,6 +138,33 @@ class UISystem {
       cy = uiWidgets.drawLineClamped(tr("ui.waveTimer") + ": " + nf(state.enemyAi.attackTimer, 1, 1) + "  " + tr("ui.last") + ": " + state.enemyAi.lastAction, contentX, cy, contentW, 12);
       fill(230);
     }
+    if (state.scriptRuntime != null && state.scriptRuntime.enabled) {
+      fill(185, 230, 185);
+      cy = uiWidgets.drawLineClamped(
+        "SCRIPT " + state.scriptRuntime.bundleName +
+        "  trig+" + state.scriptRuntime.blackboard.triggerFireCountLastTick +
+        "  act+" + state.scriptRuntime.blackboard.actionsExecutedLastTick,
+        contentX, cy, contentW, 12
+      );
+      fill(165, 210, 165);
+      cy = uiWidgets.drawLineClamped(
+        "AI state: " + state.scriptRuntime.activeAiStateLabel() +
+        "  overrun: " + state.scriptBudgetOverrunCount,
+        contentX, cy, contentW, 12
+      );
+      int show = min(10, state.scriptRuntime.blackboard.actionLogs.size());
+      for (int li = 0; li < show; li++) {
+        int idx = state.scriptRuntime.blackboard.actionLogs.size() - 1 - li;
+        ScriptActionLog log = state.scriptRuntime.blackboard.actionLogs.get(idx);
+        if (log == null) continue;
+        fill(150, 185, 150);
+        cy = uiWidgets.drawLineClamped(
+          " - [" + nf(log.atSec, 1, 1) + "s] " + log.text,
+          contentX, cy, contentW, 11
+        );
+      }
+      fill(230);
+    }
     if (state.benchmarkScenarioActive) {
       if (state.benchmarkReinforceFlashTimer > 0) {
         fill(255, 205, 110);
@@ -326,8 +353,15 @@ class UISystem {
       text("Fog " + nf(state.profileFogMs, 1, 2) +
         "  Combat " + nf(state.profileCombatMs, 1, 2) +
         "  AI " + nf(state.profileAiMs, 1, 2) +
+        "  Script " + nf(state.profileScriptMs, 1, 2) +
         "  UI " + nf(state.profileUiMs, 1, 2), px + 8, py + 42);
-      text("Steps fixed@" + state.profileStepHzLabel() + "  FogBudget " + nf(state.fogUpdateBudgetMs, 1, 1) + "ms", px + 8, py + 60);
+      String scriptState = (state.scriptRuntime != null && state.scriptRuntime.enabled)
+        ? (state.scriptRuntime.bundleName + "/" + state.scriptRuntime.activeAiStateLabel())
+        : "-";
+      text("Steps fixed@" + state.profileStepHzLabel() +
+        "  FogBudget " + nf(state.fogUpdateBudgetMs, 1, 1) + "ms" +
+        "  ScriptAct " + state.scriptActionsLastTick +
+        "  ScriptState " + scriptState, px + 8, py + 60);
     }
   }
 

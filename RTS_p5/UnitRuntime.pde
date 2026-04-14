@@ -75,7 +75,10 @@ class UnitCombatLogic {
       return;
     }
     u.aiThinkTimer = random(0.12, 0.22);
-    Unit visible = gs.findHostileInRange(u, u.sightRange, gs);
+    // Player auto-defense only fires when enemy is already in attack range.
+    // This avoids implicit chase behavior and keeps control with the player.
+    float autoAttackRange = max(8, u.attackRange);
+    Unit visible = gs.findHostileInRange(u, autoAttackRange, gs);
     if (visible != null) {
       u.issueAttack(visible);
     }

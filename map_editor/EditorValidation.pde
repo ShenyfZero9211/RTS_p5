@@ -1,5 +1,6 @@
 class EditorValidationResult {
   ArrayList<String> errors = new ArrayList<String>();
+  ArrayList<String> warnings = new ArrayList<String>();
   boolean ok() {
     return errors.size() == 0;
   }
@@ -22,8 +23,13 @@ class EditorValidation {
       if ("player".equals(sp.faction)) playerSpawns++;
       if ("enemy".equals(sp.faction)) enemySpawns++;
     }
-    if (playerSpawns <= 0) r.errors.add("Missing player spawn point.");
-    if (enemySpawns <= 0) r.errors.add("Missing enemy spawn point.");
+    if (!s.testMap) {
+      if (playerSpawns <= 0) r.errors.add("Missing player spawn point.");
+      if (enemySpawns <= 0) r.errors.add("Missing enemy spawn point.");
+    } else {
+      if (playerSpawns <= 0) r.warnings.add("Missing player spawn point (allowed while testMap=ON).");
+      if (enemySpawns <= 0) r.warnings.add("Missing enemy spawn point (allowed while testMap=ON).");
+    }
 
     for (EditorMine m : s.mines) {
       if (!s.inBounds(m.tx, m.ty)) {
@@ -67,6 +73,119 @@ class EditorValidation {
         r.errors.add("Unit on blocked tile: " + u.type + " (" + utx + "," + uty + ")");
       }
     }
+    ArrayList<String> triggerIds = new ArrayList<String>();
+    String[] condAllowed = new String[] { "timeElapsed", "resourceAtLeast", "unitCountCmp", "buildingExists", "switchIs" };
+    String[] actAllowed = new String[] { "spawnUnit", "grantResource", "setSwitch", "showMessage", "issueAttackWave", "winOrLose" };
+    for (int ti = 0; ti < s.scriptTriggers.size(); ti++) {
+      EditorScriptTrigger t = s.scriptTriggers.get(ti);
+      String tid = t.id == null ? "" : trim(t.id);
+      if (tid.length() <= 0) {
+        r.errors.add("Script trigger #" + (ti + 1) + " missing id.");
+      } else if (triggerIds.contains(tid)) {
+        r.errors.add("Script trigger id duplicated: " + tid);
+      } else {
+        triggerIds.add(tid);
+      }
+      if (t.conditions.size() <= 0) r.errors.add("Script trigger " + tid + " has no conditions.");
+      if (t.actions.size() <= 0) r.errors.add("Script trigger " + tid + " has no actions.");
+      for (int ci = 0; ci < t.conditions.size(); ci++) {
+        EditorScriptCondition c = t.conditions.get(ci);
+        String type = c == null || c.data == null ? "" : c.data.getString("type", "");
+        if (!inSet(type, condAllowed)) {
+          r.errors.add("Script condition unsupported: " + type + " in " + tid);
+        }
+      }
+      for (int ai = 0; ai < t.actions.size(); ai++) {
+        EditorScriptAction a = t.actions.get(ai);
+        String type = a == null || a.data == null ? "" : a.data.getString("type", "");
+        if (!inSet(type, actAllowed)) {
+          r.errors.add("Script action unsupported: " + type + " in " + tid);
+        }
+      }
+
+      // Condition <-> Action logic checks (first-pass guardrails)
+      boolean hasTimeElapsed = triggerHasConditionType(t, "timeElapsed");
+      boolean hasUnitCountCmp = triggerHasConditionType(t, "unitCountCmp");
+      boolean hasBuildingExists = triggerHasConditionType(t, "buildingExists");
+      boolean hasSwitchIs = triggerHasConditionType(t, "switchIs");
+      boolean hasResourceAtLeast = triggerHasConditionType(t, "resourceAtLeast");
+
+      boolean hasGrantResource = triggerHasActionType(t, "grantResource");
+      boolean hasSpawnUnit = triggerHasActionType(t, "spawnUnit");
+      boolean hasIssueAttackWave = triggerHasActionType(t, "issueAttackWave");
+      boolean hasSetSwitch = triggerHasActionType(t, "setSwitch");
+      boolean hasWinOrLose = triggerHasActionType(t, "winOrLose");
+
+      // 1) Decisive actions should not be preserved forever.
+      if (hasWinOrLose && t.preserve) {
+        r.warnings.add("Trigger " + safeId(tid, ti) + ": winOrLose should set preserve=false.");
+      }
+
+      // 2) Spawning/attack/resource actions must have at least one gating condition.
+      boolean hasStrongGate = hasTimeElapsed || hasUnitCountCmp || hasBuildingExists || hasSwitchIs || hasResourceAtLeast;
+      if ((hasGrantResource || hasSpawnUnit || hasIssueAttackWave) && !hasStrongGate) {
+        r.errors.add("Trigger " + safeId(tid, ti) + ": action requires a gating condition (time/unit/building/switch/resource).");
+      }
+
+      // 3) Preserve + no cooldown + mutating actions is usually a runaway loop.
+      if (t.preserve && t.cooldownMs <= 0 && (hasGrantResource || hasSpawnUnit || hasIssueAttackWave)) {
+        r.warnings.add("Trigger " + safeId(tid, ti) + ": preserve=true and cooldownMs=0 may spam mutating actions.");
+      }
+
+      // 4) switchIs conditions should usually have a way to change switch state.
+      if (hasSwitchIs && !hasSetSwitch && t.preserve && t.cooldownMs <= 0) {
+        r.warnings.add("Trigger " + safeId(tid, ti) + ": switchIs without setSwitch can lock trigger state.");
+      }
+
+      // 5) Hard constraints by action type.
+      if (hasIssueAttackWave && !(hasTimeElapsed || hasUnitCountCmp || hasBuildingExists || hasSwitchIs)) {
+        r.errors.add("Trigger " + safeId(tid, ti) + ": issueAttackWave requires timeElapsed/unitCountCmp/buildingExists/switchIs.");
+      }
+      if (hasSpawnUnit && !(hasTimeElapsed || hasResourceAtLeast || hasSwitchIs || hasBuildingExists)) {
+        r.errors.add("Trigger " + safeId(tid, ti) + ": spawnUnit requires timeElapsed/resourceAtLeast/switchIs/buildingExists.");
+      }
+      if (hasGrantResource && !(hasResourceAtLeast || hasSwitchIs || hasTimeElapsed)) {
+        r.errors.add("Trigger " + safeId(tid, ti) + ": grantResource requires resourceAtLeast/switchIs/timeElapsed.");
+      }
+      if (hasSetSwitch && !(hasSwitchIs || hasTimeElapsed || hasResourceAtLeast || hasUnitCountCmp || hasBuildingExists)) {
+        r.errors.add("Trigger " + safeId(tid, ti) + ": setSwitch requires at least one gating condition.");
+      }
+      if (hasWinOrLose && !(hasBuildingExists || hasUnitCountCmp || hasTimeElapsed || hasSwitchIs)) {
+        r.errors.add("Trigger " + safeId(tid, ti) + ": winOrLose requires buildingExists/unitCountCmp/timeElapsed/switchIs.");
+      }
+    }
     return r;
+  }
+
+  boolean inSet(String v, String[] arr) {
+    for (int i = 0; i < arr.length; i++) {
+      if (arr[i].equals(v)) return true;
+    }
+    return false;
+  }
+
+  boolean triggerHasConditionType(EditorScriptTrigger t, String type) {
+    if (t == null) return false;
+    for (int i = 0; i < t.conditions.size(); i++) {
+      EditorScriptCondition c = t.conditions.get(i);
+      if (c == null || c.data == null) continue;
+      if (type.equals(c.data.getString("type", ""))) return true;
+    }
+    return false;
+  }
+
+  boolean triggerHasActionType(EditorScriptTrigger t, String type) {
+    if (t == null) return false;
+    for (int i = 0; i < t.actions.size(); i++) {
+      EditorScriptAction a = t.actions.get(i);
+      if (a == null || a.data == null) continue;
+      if (type.equals(a.data.getString("type", ""))) return true;
+    }
+    return false;
+  }
+
+  String safeId(String tid, int idx) {
+    if (tid != null && tid.length() > 0) return tid;
+    return "#" + (idx + 1);
   }
 }

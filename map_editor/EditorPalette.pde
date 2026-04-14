@@ -92,7 +92,7 @@ class EditorPalette {
   }
 
   boolean hoverValidationErrors(EditorState s, int mx, int my, EditorValidationResult vr) {
-    if (vr.ok() || vr.errors.size() <= 0) return false;
+    if (vr.errors.size() <= 0 && vr.warnings.size() <= 0) return false;
     int x0 = s.paletteLeftPx();
     int pw = EditorState.PALETTE_W;
     int top = validationBodyTop();
@@ -238,9 +238,14 @@ class EditorPalette {
     fill(vr.ok() ? color(100, 190, 120) : color(230, 120, 120));
     textSize(11);
     textAlign(LEFT, TOP);
-    text(vr.ok() ? "Validation: PASS" : "Validation: " + vr.errors.size() + " issues", x0 + 10, titleY);
+    if (vr.ok()) {
+      String warnSuffix = vr.warnings.size() > 0 ? ("  (" + vr.warnings.size() + " warnings)") : "";
+      text("Validation: PASS" + warnSuffix, x0 + 10, titleY);
+    } else {
+      text("Validation: " + vr.errors.size() + " errors" + (vr.warnings.size() > 0 ? (", " + vr.warnings.size() + " warnings") : ""), x0 + 10, titleY);
+    }
 
-    if (!vr.ok() && vr.errors.size() > 0) {
+    if (vr.errors.size() > 0 || vr.warnings.size() > 0) {
       noStroke();
       fill(20, 24, 30);
       rect(x0 + 8, bodyTop, pw - 16, FOOTER_VALIDATION_SCROLL_H, 4);
@@ -256,10 +261,15 @@ class EditorPalette {
       textSize(10);
       textLeading(14);
       textAlign(LEFT, TOP);
-      fill(165, 180, 200);
+      fill(230, 140, 140);
       float ey = 0;
       for (int i = 0; i < vr.errors.size(); i++) {
         text("- " + vr.errors.get(i), 0, ey, pw - 28, 14);
+        ey += 14;
+      }
+      fill(212, 190, 120);
+      for (int i = 0; i < vr.warnings.size(); i++) {
+        text("- [warn] " + vr.warnings.get(i), 0, ey, pw - 28, 14);
         ey += 14;
       }
       noClip();
@@ -275,12 +285,12 @@ class EditorPalette {
   }
 
   void clampValidationScroll(EditorState s, EditorValidationResult vr) {
-    if (vr.ok() || vr.errors.size() <= 0) {
+    if (vr.errors.size() <= 0 && vr.warnings.size() <= 0) {
       s.paletteValidationScroll = 0;
       return;
     }
     int lineH = 14;
-    int contentH = vr.errors.size() * lineH;
+    int contentH = (vr.errors.size() + vr.warnings.size()) * lineH;
     int viewInner = FOOTER_VALIDATION_SCROLL_H - 8;
     int maxScroll = max(0, contentH - viewInner);
     s.paletteValidationScroll = constrain(s.paletteValidationScroll, 0, maxScroll);

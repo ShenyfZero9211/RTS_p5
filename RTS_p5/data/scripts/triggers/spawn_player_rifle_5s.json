@@ -1,0 +1,24 @@
+{
+  "triggers": [
+    {
+      "id": "player_spawn_rifle_every_5s",
+      "preserve": true,
+      "cooldownMs": 5000,
+      "priority": 100,
+      "conditions": [
+        {
+          "type": "timeElapsed",
+          "seconds": 5
+        }
+      ],
+      "actions": [
+        {
+          "type": "spawnUnit",
+          "faction": "player",
+          "unit": "rifleman",
+          "count": 3
+        }
+      ]
+    }
+  ]
+}

@@ -179,6 +179,35 @@ class EditorIO {
       units.append(o);
     }
     root.setJSONArray("initialUnits", units);
+    if ((s.scriptBundle != null && trim(s.scriptBundle).length() > 0) || s.scriptTriggers.size() > 0) {
+      if (s.scriptBundle != null && trim(s.scriptBundle).length() > 0) {
+        root.setString("scriptBundle", trim(s.scriptBundle));
+      }
+      JSONArray triggers = new JSONArray();
+      for (EditorScriptTrigger t : s.scriptTriggers) {
+        JSONObject trigObj = new JSONObject();
+        trigObj.setString("id", t.id == null ? "" : t.id);
+        trigObj.setBoolean("preserve", t.preserve);
+        trigObj.setInt("cooldownMs", max(0, t.cooldownMs));
+        trigObj.setInt("priority", t.priority);
+        JSONArray conds = new JSONArray();
+        for (EditorScriptCondition c : t.conditions) {
+          JSONObject cp = parseJSONObject(c.data == null ? "{}" : c.data.toString());
+          if (cp == null) cp = new JSONObject();
+          conds.append(cp);
+        }
+        JSONArray acts = new JSONArray();
+        for (EditorScriptAction a : t.actions) {
+          JSONObject ap = parseJSONObject(a.data == null ? "{}" : a.data.toString());
+          if (ap == null) ap = new JSONObject();
+          acts.append(ap);
+        }
+        trigObj.setJSONArray("conditions", conds);
+        trigObj.setJSONArray("actions", acts);
+        triggers.append(trigObj);
+      }
+      root.setJSONArray("scriptTriggers", triggers);
+    }
     return root;
   }
 
@@ -283,6 +312,43 @@ class EditorIO {
           u.getString("type", "rifleman"),
           wcx, wcy
           ));
+      }
+    }
+    s.scriptBundle = root.getString("scriptBundle", "");
+    s.scriptTriggers.clear();
+    JSONArray triggerArr = root.getJSONArray("scriptTriggers");
+    if (triggerArr != null) {
+      for (int i = 0; i < triggerArr.size(); i++) {
+        JSONObject trigObj = triggerArr.getJSONObject(i);
+        if (trigObj == null) continue;
+        EditorScriptTrigger t = new EditorScriptTrigger();
+        t.id = trigObj.getString("id", "trigger_" + (i + 1));
+        t.preserve = trigObj.getBoolean("preserve", true);
+        t.cooldownMs = max(0, trigObj.getInt("cooldownMs", 0));
+        t.priority = trigObj.getInt("priority", 0);
+        t.conditions.clear();
+        t.actions.clear();
+        JSONArray conds = trigObj.getJSONArray("conditions");
+        if (conds != null) {
+          for (int ci = 0; ci < conds.size(); ci++) {
+            JSONObject c = conds.getJSONObject(ci);
+            if (c == null) continue;
+            JSONObject cp = parseJSONObject(c.toString());
+            if (cp == null) cp = new JSONObject();
+            t.conditions.add(new EditorScriptCondition(cp));
+          }
+        }
+        JSONArray acts = trigObj.getJSONArray("actions");
+        if (acts != null) {
+          for (int ai = 0; ai < acts.size(); ai++) {
+            JSONObject a = acts.getJSONObject(ai);
+            if (a == null) continue;
+            JSONObject ap = parseJSONObject(a.toString());
+            if (ap == null) ap = new JSONObject();
+            t.actions.add(new EditorScriptAction(ap));
+          }
+        }
+        s.scriptTriggers.add(t);
       }
     }
   }

@@ -70,6 +70,66 @@ class EditorPlacedUnit {
   }
 }
 
+class EditorScriptCondition {
+  JSONObject data = new JSONObject();
+
+  EditorScriptCondition() {
+  }
+
+  EditorScriptCondition(JSONObject src) {
+    if (src != null) {
+      data = src;
+    }
+  }
+
+  EditorScriptCondition copy() {
+    JSONObject cp = parseJSONObject(data == null ? "{}" : data.toString());
+    if (cp == null) cp = new JSONObject();
+    return new EditorScriptCondition(cp);
+  }
+}
+
+class EditorScriptAction {
+  JSONObject data = new JSONObject();
+
+  EditorScriptAction() {
+  }
+
+  EditorScriptAction(JSONObject src) {
+    if (src != null) {
+      data = src;
+    }
+  }
+
+  EditorScriptAction copy() {
+    JSONObject cp = parseJSONObject(data == null ? "{}" : data.toString());
+    if (cp == null) cp = new JSONObject();
+    return new EditorScriptAction(cp);
+  }
+}
+
+class EditorScriptTrigger {
+  String id = "trigger_1";
+  boolean preserve = true;
+  int cooldownMs = 0;
+  int priority = 0;
+  ArrayList<EditorScriptCondition> conditions = new ArrayList<EditorScriptCondition>();
+  ArrayList<EditorScriptAction> actions = new ArrayList<EditorScriptAction>();
+
+  EditorScriptTrigger copy() {
+    EditorScriptTrigger cp = new EditorScriptTrigger();
+    cp.id = id;
+    cp.preserve = preserve;
+    cp.cooldownMs = cooldownMs;
+    cp.priority = priority;
+    cp.conditions.clear();
+    for (EditorScriptCondition c : conditions) cp.conditions.add(c.copy());
+    cp.actions.clear();
+    for (EditorScriptAction a : actions) cp.actions.add(a.copy());
+    return cp;
+  }
+}
+
 class EditorState {
   int mapWidth = 48;
   int mapHeight = 48;
@@ -84,6 +144,8 @@ class EditorState {
   ArrayList<EditorSpawn> spawns = new ArrayList<EditorSpawn>();
   ArrayList<EditorPlacedBuilding> initialBuildings = new ArrayList<EditorPlacedBuilding>();
   ArrayList<EditorPlacedUnit> initialUnits = new ArrayList<EditorPlacedUnit>();
+  String scriptBundle = "";
+  ArrayList<EditorScriptTrigger> scriptTriggers = new ArrayList<EditorScriptTrigger>();
 
   HashMap<String, int[]> buildingSizeById = new HashMap<String, int[]>();
   HashMap<String, Float> unitRadiusById = new HashMap<String, Float>();
@@ -144,6 +206,8 @@ class EditorState {
     spawns.clear();
     initialBuildings.clear();
     initialUnits.clear();
+    scriptBundle = "";
+    scriptTriggers.clear();
     selectedObjectType = "";
     selectedObjectIndex = -1;
     placementFaction = "player";

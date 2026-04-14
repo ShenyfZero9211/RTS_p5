@@ -10,6 +10,7 @@ class EditorUI {
   EditorEditHistory editHistory = new EditorEditHistory();
   EditorMapSelection mapSelection = new EditorMapSelection();
   EditorNewMapDialog newMapDialog = new EditorNewMapDialog();
+  EditorScriptDialog scriptDialog;
 
   boolean draggingPan = false;
   boolean draggingMinimapView = false;
@@ -30,6 +31,7 @@ class EditorUI {
     this.chromePalette = new EditorPalette();
     this.chromeMenuBar = new EditorMenuBar();
     this.chromeMinimap = new EditorMinimap();
+    this.scriptDialog = new EditorScriptDialog(state, this);
   }
 
   void onMapLoadedOrNew() {
@@ -114,13 +116,19 @@ class EditorUI {
     }
   }
 
+  void toggleScriptDialog() {
+    if (scriptDialog == null) return;
+    scriptDialog.toggle();
+    s.setStatus(scriptDialog.visible ? "Script dialog opened." : "Script dialog closed.");
+  }
+
   String hotkeyHelpBlock() {
     return "Hotkeys: 1/2/3 terrain  E/F/I  M P O  B U V\n"
       + "[ / ] cycle type  +/- brush  Wheel zoom map\n"
       + "Shift+drag rect terrain  Space+drag pan\n"
       + "Ctrl+S save  Ctrl+Shift+S Save As  Ctrl+L load  Ctrl+N new\n"
       + "Ctrl+Z undo  Ctrl+Y / Ctrl+Shift+Z redo  Ctrl+X/C/V cut/copy/paste\n"
-      + "Ctrl+R export map_test  Ctrl+[ ] cycle data map file";
+      + "Ctrl+R export map_test  Ctrl+[ ] cycle data map file  Ctrl+T script";
   }
 
   PVector screenToWorld(int mx, int my) {
@@ -155,6 +163,9 @@ class EditorUI {
     chromePalette.clampScroll(s);
     chromePalette.clampValidationScroll(s, vr);
     chromeMenuBar.render(s, mx, my);
+    if (scriptDialog != null && scriptDialog.visible) {
+      scriptDialog.render();
+    }
 
     boolean onMinimapView = chromePalette.minimapContains(s, mx, my) && chromeMinimap.viewportContainsScreen(mx, my);
     boolean hand = chromeMenuBar.anyMenuHover(mx, my)
@@ -497,6 +508,7 @@ class EditorUI {
 
   void onMousePressed(int mx, int my, int button) {
     if (chromeMenuBar.mousePressed(s, io, validator, this, mx, my, button)) return;
+    if (scriptDialog != null && scriptDialog.visible && scriptDialog.onMousePressed(mx, my, button)) return;
     if (chromeToolbar.mousePressed(s, mx, my, button)) {
       syncInteractionMode();
       return;
@@ -627,6 +639,9 @@ class EditorUI {
     boolean ctrl = keyEvent != null && keyEvent.isControlDown();
     boolean shift = keyEvent != null && keyEvent.isShiftDown();
     int vk = keyCode;
+    if (scriptDialog != null && scriptDialog.visible && scriptDialog.onKeyPressed(k, keyCode)) {
+      return;
+    }
     // With Ctrl held, `key` is often a control char (e.g. Ctrl+Z -> 26), not 'z'. Use keyCode + VK_*.
     if (ctrl) {
       if (shift && vk == java.awt.event.KeyEvent.VK_S) {
@@ -685,6 +700,10 @@ class EditorUI {
       }
       if (vk == java.awt.event.KeyEvent.VK_V) {
         menuPaste();
+        return;
+      }
+      if (vk == java.awt.event.KeyEvent.VK_T) {
+        toggleScriptDialog();
         return;
       }
     }

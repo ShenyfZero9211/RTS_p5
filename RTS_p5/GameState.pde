@@ -92,6 +92,7 @@ class GameState {
   float profileFogMs = 0;
   float profileCombatMs = 0;
   float profileAiMs = 0;
+  float profileScriptMs = 0;
   float profileUiMs = 0;
   float profileFrameMs = 0;
   int profilingSampleFrames = 0;
@@ -108,6 +109,10 @@ class GameState {
   int benchmarkLastPlayerReinforce = 0;
   int benchmarkLastEnemyReinforce = 0;
   float benchmarkReinforceFlashTimer = 0;
+  ScriptRuntime scriptRuntime;
+  int scriptActionsLastTick = 0;
+  int scriptActionsTotal = 0;
+  int scriptBudgetOverrunCount = 0;
 
   /** Map JSON in sketch `data/` folder (e.g. exported from the map editor). */
   String defaultMapJson = "map_001.json";
@@ -288,6 +293,7 @@ class GameState {
     productionSystem = new ProductionSystem();
     gameFlow = new GameFlowController();
     effectsRuntime = new EffectsRuntime();
+    scriptRuntime = new ScriptRuntime();
     uiSettingsLoader = new UiSettingsLoader();
     definitionsLoader = new DefinitionsLoader();
     resetControlGroups();
@@ -306,6 +312,10 @@ class GameState {
     benchmarkLastPlayerReinforce = 0;
     benchmarkLastEnemyReinforce = 0;
     benchmarkReinforceFlashTimer = 0;
+    scriptActionsLastTick = 0;
+    scriptActionsTotal = 0;
+    scriptBudgetOverrunCount = 0;
+    profileScriptMs = 0;
     pendingReturnToMenu = false;
     orderLabel = tr("order.none");
     attackMoveArmed = false;
@@ -332,6 +342,10 @@ class GameState {
       println(lastStartError);
       map = null;
       return false;
+    }
+    JSONObject mapRoot = loadJSONObject(defaultMapJson);
+    if (scriptRuntime != null) {
+      scriptRuntime.resetForNewGame(this, mapRoot);
     }
     loadMapResources();
 
@@ -1035,6 +1049,9 @@ class GameState {
     int tInput = millis();
     input.update(dt);
     profileInputMs = lerp(profileInputMs, millis() - tInput, 0.15);
+    if (scriptRuntime != null) {
+      scriptRuntime.tick(dt, this);
+    }
     int tBuild = millis();
     buildSystem.update(dt, buildings);
     effectsRuntime.updateOrderMarkers(this, dt);
@@ -1078,7 +1095,7 @@ class GameState {
     updateTowerDefense(dt);
     profileCombatMs = lerp(profileCombatMs, millis() - tCombat, 0.15);
     int tAi = millis();
-    if (enemyAi != null) {
+    if (enemyAi != null && (scriptRuntime == null || !scriptRuntime.ownsEnemyAi())) {
       enemyAi.update(dt, this);
     }
     profileAiMs = lerp(profileAiMs, millis() - tAi, 0.15);

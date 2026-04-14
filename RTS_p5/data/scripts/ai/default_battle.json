@@ -1,0 +1,98 @@
+{
+  "profile": "default_battle",
+  "ownsEnemyAi": true,
+  "threads": [
+    {
+      "id": "enemy_main",
+      "owner": "enemy",
+      "initialState": "eco",
+      "states": [
+        {
+          "id": "eco",
+          "commands": [
+            {
+              "type": "train",
+              "unit": "miner",
+              "untilCount": 4
+            },
+            {
+              "type": "wait",
+              "seconds": 2.5
+            }
+          ],
+          "transitions": [
+            {
+              "to": "prepare",
+              "when": "unitCountCmp",
+              "faction": "enemy",
+              "unit": "miner",
+              "op": ">=",
+              "value": 4
+            }
+          ]
+        },
+        {
+          "id": "prepare",
+          "commands": [
+            {
+              "type": "train",
+              "unit": "rifleman",
+              "untilCount": 8
+            },
+            {
+              "type": "build",
+              "building": "barracks"
+            },
+            {
+              "type": "wait",
+              "seconds": 1.5
+            }
+          ],
+          "transitions": [
+            {
+              "to": "attack",
+              "when": "unitCountCmp",
+              "faction": "enemy",
+              "unit": "rifleman",
+              "op": ">=",
+              "value": 8
+            }
+          ]
+        },
+        {
+          "id": "attack",
+          "commands": [
+            {
+              "type": "attackDo",
+              "faction": "enemy",
+              "count": 10
+            },
+            {
+              "type": "wait",
+              "seconds": 6.0
+            },
+            {
+              "type": "retreat",
+              "faction": "enemy",
+              "count": 4
+            },
+            {
+              "type": "wait",
+              "seconds": 4.0
+            }
+          ],
+          "transitions": [
+            {
+              "to": "prepare",
+              "when": "unitCountCmp",
+              "faction": "enemy",
+              "unit": "rifleman",
+              "op": "<",
+              "value": 5
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

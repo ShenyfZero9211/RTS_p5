@@ -12,6 +12,8 @@ class EditorMapSnapshot {
   ArrayList<EditorSpawn> spawns = new ArrayList<EditorSpawn>();
   ArrayList<EditorPlacedBuilding> buildings = new ArrayList<EditorPlacedBuilding>();
   ArrayList<EditorPlacedUnit> units = new ArrayList<EditorPlacedUnit>();
+  String scriptBundle = "";
+  ArrayList<EditorScriptTrigger> scriptTriggers = new ArrayList<EditorScriptTrigger>();
 
   /** Processing sketch inner classes cannot use static factory methods; use constructor. */
   EditorMapSnapshot(EditorState s) {
@@ -37,6 +39,10 @@ class EditorMapSnapshot {
     }
     for (EditorPlacedUnit u : s.initialUnits) {
       units.add(new EditorPlacedUnit(u.faction, u.type, u.worldCX, u.worldCY));
+    }
+    scriptBundle = s.scriptBundle == null ? "" : s.scriptBundle;
+    for (EditorScriptTrigger t : s.scriptTriggers) {
+      scriptTriggers.add(t.copy());
     }
   }
 
@@ -67,6 +73,11 @@ class EditorMapSnapshot {
     s.initialUnits.clear();
     for (EditorPlacedUnit u : units) {
       s.initialUnits.add(new EditorPlacedUnit(u.faction, u.type, u.worldCX, u.worldCY));
+    }
+    s.scriptBundle = scriptBundle == null ? "" : scriptBundle;
+    s.scriptTriggers.clear();
+    for (EditorScriptTrigger t : scriptTriggers) {
+      s.scriptTriggers.add(t.copy());
     }
     s.paletteListScroll = 0;
     s.paletteValidationScroll = 0;
