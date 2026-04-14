@@ -73,6 +73,29 @@ class EditorValidation {
         r.errors.add("Unit on blocked tile: " + u.type + " (" + utx + "," + uty + ")");
       }
     }
+    ArrayList<String> bundleKeys = new ArrayList<String>();
+    for (int bi = 0; bi < s.scriptBundles.size(); bi++) {
+      EditorScriptBundleBinding b = s.scriptBundles.get(bi);
+      String key = trim(b.path == null || b.path.length() <= 0 ? b.id : b.path);
+      if (key.length() <= 0) {
+        r.errors.add("Script bundle #" + (bi + 1) + " missing path/id.");
+        continue;
+      }
+      if (bundleKeys.contains(key)) {
+        r.errors.add("Script bundle duplicated: " + key);
+      } else {
+        bundleKeys.add(key);
+      }
+      if (b.enabled) {
+        String p = sketchPath("../RTS_p5/data/scripts/triggers/" + key + ".json");
+        JSONObject root = loadJSONObject(p);
+        if (root == null) {
+          r.errors.add("Script bundle file missing: " + key + ".json");
+        }
+      } else {
+        r.warnings.add("Script bundle disabled: " + key);
+      }
+    }
     ArrayList<String> triggerIds = new ArrayList<String>();
     String[] condAllowed = new String[] { "timeElapsed", "resourceAtLeast", "unitCountCmp", "buildingExists", "switchIs" };
     String[] actAllowed = new String[] { "spawnUnit", "grantResource", "setSwitch", "showMessage", "issueAttackWave", "winOrLose" };
@@ -100,6 +123,20 @@ class EditorValidation {
         String type = a == null || a.data == null ? "" : a.data.getString("type", "");
         if (!inSet(type, actAllowed)) {
           r.errors.add("Script action unsupported: " + type + " in " + tid);
+          continue;
+        }
+        if ("spawnUnit".equals(type)) {
+          String mode = a.data.getString("positionMode", "nearFactionSpawn");
+          if (!inSet(mode, new String[] {"nearFactionSpawn", "tilePoint", "worldPoint"})) {
+            r.errors.add("Trigger " + safeId(tid, ti) + ": spawnUnit invalid positionMode " + mode);
+          }
+          if ("tilePoint".equals(mode)) {
+            int tx = a.data.getInt("tileX", -1);
+            int ty = a.data.getInt("tileY", -1);
+            if (!s.inBounds(tx, ty)) {
+              r.errors.add("Trigger " + safeId(tid, ti) + ": spawnUnit tilePoint out of bounds.");
+            }
+          }
         }
       }
 

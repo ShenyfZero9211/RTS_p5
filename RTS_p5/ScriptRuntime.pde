@@ -129,8 +129,13 @@ class GameActionBus {
     int count = max(1, actionObj.getInt("count", 1));
     int tx = actionObj.getInt("tileX", -1);
     int ty = actionObj.getInt("tileY", -1);
+    float wx = actionObj.getFloat("worldX", -1);
+    float wy = actionObj.getFloat("worldY", -1);
+    String positionMode = safeLower(actionObj.getString("positionMode", ""));
     PVector anchor = null;
-    if (tx >= 0 && ty >= 0) {
+    if ("worldpoint".equals(positionMode) && wx >= 0 && wy >= 0) {
+      anchor = new PVector(wx, wy);
+    } else if (("tilepoint".equals(positionMode) && tx >= 0 && ty >= 0) || (positionMode.length() <= 0 && tx >= 0 && ty >= 0)) {
       anchor = new PVector((tx + 0.5) * gs.map.tileSize, (ty + 0.5) * gs.map.tileSize);
     } else {
       Building base = gs.findMainBaseForFaction(faction);
@@ -521,6 +526,7 @@ class AIScriptEngine {
 class ScriptRuntime {
   boolean enabled = false;
   String bundleName = "";
+  String bundleNames = "";
   float frameBudgetMs = 0.8;
   ScriptClock clock = new ScriptClock();
   ScriptBlackboard blackboard = new ScriptBlackboard();
@@ -532,6 +538,7 @@ class ScriptRuntime {
   void reset() {
     enabled = false;
     bundleName = "";
+    bundleNames = "";
     lastError = "";
     clock.reset();
     blackboard.reset();
@@ -544,19 +551,72 @@ class ScriptRuntime {
     if (mapRoot == null) {
       return;
     }
-    bundleName = mapRoot.getString("scriptBundle", "");
-    if (bundleName == null || bundleName.length() <= 0) {
+    ArrayList<String> triggerBundleNames = new ArrayList<String>();
+    ArrayList<String> aiBundleNames = new ArrayList<String>();
+    JSONArray bundleArr = mapRoot.getJSONArray("scriptBundles");
+    if (bundleArr != null && bundleArr.size() > 0) {
+      for (int i = 0; i < bundleArr.size(); i++) {
+        JSONObject bo = bundleArr.getJSONObject(i);
+        if (bo == null || !bo.getBoolean("enabled", true)) continue;
+        String path = trim(bo.getString("path", ""));
+        if (path.length() <= 0) path = trim(bo.getString("id", ""));
+        if (path.length() <= 0) path = trim(bo.getString("bundle", ""));
+        if (path.length() <= 0) continue;
+        triggerBundleNames.add(path);
+      }
+    }
+    bundleName = "";
+    aiBundleNames.addAll(triggerBundleNames);
+    if (triggerBundleNames.size() <= 0 && aiBundleNames.size() <= 0 && mapRoot.getJSONArray("scriptTriggers") == null) {
       return;
     }
-    bundleName = trim(bundleName);
     try {
-      JSONObject triggerRoot = loadJSONObject("scripts/triggers/" + bundleName + ".json");
-      JSONObject aiRoot = loadJSONObject("scripts/ai/" + bundleName + ".json");
-      triggerEngine.loadFromJson(triggerRoot);
-      aiEngine.loadFromJson(aiRoot);
+      JSONObject mergedTriggerRoot = new JSONObject();
+      JSONArray mergedTriggers = new JSONArray();
+      JSONArray localTriggerArr = mapRoot.getJSONArray("scriptTriggers");
+      if (localTriggerArr != null) {
+        for (int i = 0; i < localTriggerArr.size(); i++) {
+          JSONObject t = localTriggerArr.getJSONObject(i);
+          if (t == null) continue;
+          JSONObject cp = parseJSONObject(t.toString());
+          if (cp == null) continue;
+          String id = cp.getString("id", "map_trigger_" + i);
+          cp.setString("id", "map/" + id);
+          mergedTriggers.append(cp);
+        }
+      }
+      ArrayList<String> activeNames = new ArrayList<String>();
+      for (int i = 0; i < triggerBundleNames.size(); i++) {
+        String bn = triggerBundleNames.get(i);
+        JSONObject triggerRoot = loadJSONObject("scripts/triggers/" + bn + ".json");
+        if (triggerRoot == null) continue;
+        activeNames.add(bn);
+        JSONArray arr = triggerRoot.getJSONArray("triggers");
+        if (arr == null) continue;
+        for (int ti = 0; ti < arr.size(); ti++) {
+          JSONObject t = arr.getJSONObject(ti);
+          if (t == null) continue;
+          JSONObject cp = parseJSONObject(t.toString());
+          if (cp == null) continue;
+          String id = cp.getString("id", "trigger_" + ti);
+          cp.setString("id", "bundle/" + bn + "/" + id);
+          mergedTriggers.append(cp);
+        }
+      }
+      mergedTriggerRoot.setJSONArray("triggers", mergedTriggers);
+      triggerEngine.loadFromJson(mergedTriggerRoot);
+      for (int i = 0; i < aiBundleNames.size(); i++) {
+        JSONObject aiRoot = loadJSONObject("scripts/ai/" + aiBundleNames.get(i) + ".json");
+        if (aiRoot != null) {
+          aiEngine.loadFromJson(aiRoot);
+          if (aiEngine.enabled) break;
+        }
+      }
+      bundleNames = join(activeNames.toArray(new String[0]), ",");
+      if (bundleNames.length() <= 0 && bundleName.length() > 0) bundleNames = bundleName;
       enabled = triggerEngine.rules.size() > 0 || aiEngine.enabled;
       if (enabled) {
-        gs.orderLabel = "[SCRIPT] " + bundleName;
+        gs.orderLabel = "[SCRIPT] " + (bundleNames.length() > 0 ? bundleNames : "map-local");
       }
     }
     catch (Exception ex) {

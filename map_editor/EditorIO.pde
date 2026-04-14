@@ -179,9 +179,19 @@ class EditorIO {
       units.append(o);
     }
     root.setJSONArray("initialUnits", units);
-    if ((s.scriptBundle != null && trim(s.scriptBundle).length() > 0) || s.scriptTriggers.size() > 0) {
-      if (s.scriptBundle != null && trim(s.scriptBundle).length() > 0) {
-        root.setString("scriptBundle", trim(s.scriptBundle));
+    if (s.scriptBundles.size() > 0 || s.scriptTriggers.size() > 0) {
+      JSONArray bundleArr = new JSONArray();
+      for (EditorScriptBundleBinding b : s.scriptBundles) {
+        JSONObject bo = new JSONObject();
+        bo.setString("id", b.id == null ? "" : b.id);
+        bo.setString("name", b.name == null ? "" : b.name);
+        bo.setString("path", b.path == null ? "" : b.path);
+        bo.setBoolean("enabled", b.enabled);
+        bo.setInt("priority", b.priority);
+        bundleArr.append(bo);
+      }
+      if (bundleArr.size() > 0) {
+        root.setJSONArray("scriptBundles", bundleArr);
       }
       JSONArray triggers = new JSONArray();
       for (EditorScriptTrigger t : s.scriptTriggers) {
@@ -314,7 +324,25 @@ class EditorIO {
           ));
       }
     }
-    s.scriptBundle = root.getString("scriptBundle", "");
+    s.scriptBundle = "";
+    s.scriptBundles.clear();
+    JSONArray bundleArr = root.getJSONArray("scriptBundles");
+    if (bundleArr != null) {
+      for (int bi = 0; bi < bundleArr.size(); bi++) {
+        JSONObject bo = bundleArr.getJSONObject(bi);
+        if (bo == null) continue;
+        EditorScriptBundleBinding b = new EditorScriptBundleBinding();
+        b.id = bo.getString("id", "");
+        b.name = bo.getString("name", "");
+        b.path = bo.getString("path", "");
+        b.enabled = bo.getBoolean("enabled", true);
+        b.priority = bo.getInt("priority", 0);
+        if (trim(b.path).length() <= 0) {
+          b.path = bo.getString("bundle", "");
+        }
+        s.scriptBundles.add(b);
+      }
+    }
     s.scriptTriggers.clear();
     JSONArray triggerArr = root.getJSONArray("scriptTriggers");
     if (triggerArr != null) {

@@ -130,6 +130,24 @@ class EditorScriptTrigger {
   }
 }
 
+class EditorScriptBundleBinding {
+  String id = "";
+  String name = "";
+  String path = "";
+  boolean enabled = true;
+  int priority = 0;
+
+  EditorScriptBundleBinding copy() {
+    EditorScriptBundleBinding cp = new EditorScriptBundleBinding();
+    cp.id = id;
+    cp.name = name;
+    cp.path = path;
+    cp.enabled = enabled;
+    cp.priority = priority;
+    return cp;
+  }
+}
+
 class EditorState {
   int mapWidth = 48;
   int mapHeight = 48;
@@ -145,6 +163,7 @@ class EditorState {
   ArrayList<EditorPlacedBuilding> initialBuildings = new ArrayList<EditorPlacedBuilding>();
   ArrayList<EditorPlacedUnit> initialUnits = new ArrayList<EditorPlacedUnit>();
   String scriptBundle = "";
+  ArrayList<EditorScriptBundleBinding> scriptBundles = new ArrayList<EditorScriptBundleBinding>();
   ArrayList<EditorScriptTrigger> scriptTriggers = new ArrayList<EditorScriptTrigger>();
 
   HashMap<String, int[]> buildingSizeById = new HashMap<String, int[]>();
@@ -207,6 +226,7 @@ class EditorState {
     initialBuildings.clear();
     initialUnits.clear();
     scriptBundle = "";
+    scriptBundles.clear();
     scriptTriggers.clear();
     selectedObjectType = "";
     selectedObjectIndex = -1;

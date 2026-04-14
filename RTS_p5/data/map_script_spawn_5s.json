@@ -1,7 +1,15 @@
 {
   "disableStaticObstacles": true,
   "testMap": true,
-  "scriptBundle": "spawn_player_rifle_5s",
+  "scriptBundles": [
+    {
+      "id": "spawn_player_rifle_5s",
+      "name": "spawn_player_rifle_5s",
+      "path": "spawn_player_rifle_5s",
+      "enabled": true,
+      "priority": 0
+    }
+  ],
   "legend": {
     "R": "rock - walkable rough terrain",
     "B": "block - impassable obstacle",

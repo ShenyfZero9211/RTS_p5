@@ -56,45 +56,38 @@
     "................................................"
   ],
   "initialUnits": [],
-  "scriptTriggers": [
-    {
-      "id": "player_spawn_rifle_every_5s",
-      "preserve": true,
-      "priority": 100,
-      "conditions": [{
-        "seconds": 5,
-        "type": "timeElapsed"
-      }],
-      "actions": [{
-        "unit": "rifleman",
-        "faction": "player",
-        "count": 3,
-        "type": "spawnUnit"
-      }],
-      "cooldownMs": 5000
-    },
-    {
-      "id": "trigger_2",
-      "preserve": true,
-      "priority": 0,
-      "conditions": [{
-        "seconds": 5,
-        "type": "timeElapsed"
-      }],
-      "actions": [{
-        "unit": "rifleman",
-        "faction": "enemy",
-        "count": 6,
-        "type": "spawnUnit"
-      }],
-      "cooldownMs": 0
-    }
-  ],
-  "scriptBundle": "spawn_player_rifle_5s",
+  "scriptTriggers": [{
+    "id": "trigger_1",
+    "preserve": true,
+    "priority": 0,
+    "conditions": [{
+      "seconds": 5,
+      "type": "timeElapsed"
+    }],
+    "actions": [{
+      "unit": "rocketeer",
+      "worldX": 0,
+      "worldY": 0,
+      "faction": "enemy",
+      "count": 6,
+      "positionMode": "nearFactionSpawn",
+      "type": "spawnUnit",
+      "tileX": 5,
+      "tileY": 7
+    }],
+    "cooldownMs": 5000
+  }],
   "disableStaticObstacles": true,
   "tileSize": 40,
   "initialBuildings": [],
   "width": 48,
+  "scriptBundles": [{
+    "path": "spawn_player_rifle_5s",
+    "name": "spawn_player_rifle_5s",
+    "id": "spawn_player_rifle_5s",
+    "priority": 0,
+    "enabled": true
+  }],
   "testMap": true,
   "height": 48,
   "goldMines": []

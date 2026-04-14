@@ -6,7 +6,15 @@
     ".": "sand - walkable open ground"
   },
   "tileSize": 40,
-  "scriptBundle": "default_battle",
+  "scriptBundles": [
+    {
+      "id": "default_battle",
+      "name": "default_battle",
+      "path": "default_battle",
+      "enabled": true,
+      "priority": 0
+    }
+  ],
   "initialBuildings": [
     {
       "faction": "enemy",

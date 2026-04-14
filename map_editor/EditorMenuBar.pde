@@ -45,7 +45,12 @@ class EditorMenuBar {
     textSize(DROP_TEXT);
     float mw = 0;
     if (menuIdx == 0) {
-      String[] items = new String[] { "New", "Save", "Save As...", "Load..." };
+      String[] items = new String[] {
+        "New    Ctrl+N",
+        "Save    Ctrl+S",
+        "Save As...    Ctrl+Shift+S",
+        "Load...    Ctrl+L"
+      };
       for (String it : items) mw = max(mw, textWidth(it));
     } else if (menuIdx == 1) {
       String[] items = new String[] {
@@ -180,7 +185,12 @@ class EditorMenuBar {
         int hi = hoverDropdownItem(mx, my);
         textSize(DROP_TEXT);
         textAlign(LEFT, CENTER);
-        String[] items = new String[] { "New", "Save", "Save As...", "Load..." };
+        String[] items = new String[] {
+          "New    Ctrl+N",
+          "Save    Ctrl+S",
+          "Save As...    Ctrl+Shift+S",
+          "Load...    Ctrl+L"
+        };
         for (int j = 0; j < items.length; j++) {
           int iy = dy + 2 + j * DROP_ITEM_H;
           boolean rowH = (hi == j);
