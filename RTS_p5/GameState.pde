@@ -72,6 +72,7 @@ class GameState {
   CursorLock cursorLock;
   ArrayList<OrderMarker> orderMarkers = new ArrayList<OrderMarker>();
   boolean debugShowPaths = false;
+  boolean debugShowScriptRegions = true;
 
   ArrayList<Unit> units = new ArrayList<Unit>();
   ArrayList<Building> buildings = new ArrayList<Building>();
@@ -1147,6 +1148,9 @@ class GameState {
     if (debugShowPaths) {
       renderDebugPaths();
     }
+    if (debugShowScriptRegions) {
+      renderDebugScriptRegions();
+    }
 
     buildSystem.renderPreview(camera, map, buildings, canPlaceSelectedBuildInExploredArea(), this);
     input.renderSelectionBox();
@@ -1560,6 +1564,36 @@ class GameState {
       }
     }
     noStroke();
+    popStyle();
+  }
+
+  void renderDebugScriptRegions() {
+    if (scriptRuntime == null || !scriptRuntime.enabled) return;
+    if (scriptRuntime.regionTracker == null || scriptRuntime.regionTracker.ctx == null) return;
+    if (scriptRuntime.regionTracker.ctx.regionsById == null || scriptRuntime.regionTracker.ctx.regionsById.size() <= 0) return;
+    pushStyle();
+    textSize(max(10, 11 * camera.zoom));
+    textAlign(LEFT, TOP);
+    for (ScriptRegionDef r : scriptRuntime.regionTracker.ctx.regionsById.values()) {
+      if (r == null) continue;
+      float wx = r.x * map.tileSize;
+      float wy = r.y * map.tileSize;
+      float ww = r.w * map.tileSize;
+      float wh = r.h * map.tileSize;
+      PVector p = camera.worldToScreen(wx, wy);
+      float sw = ww * camera.zoom;
+      float sh = wh * camera.zoom;
+      noStroke();
+      fill(80, 210, 255, 28);
+      rect(p.x, p.y, sw, sh);
+      stroke(80, 225, 255, 220);
+      strokeWeight(max(1, 1.6 * camera.zoom));
+      noFill();
+      rect(p.x, p.y, sw, sh);
+      noStroke();
+      fill(190, 245, 255, 245);
+      text(r.id + " (" + r.w + "x" + r.h + ")", p.x + 4, p.y + 3);
+    }
     popStyle();
   }
 

@@ -96,8 +96,26 @@ class EditorValidation {
         r.warnings.add("Script bundle disabled: " + key);
       }
     }
+    ArrayList<String> regionIds = new ArrayList<String>();
+    for (int ri = 0; ri < s.scriptRegions.size(); ri++) {
+      EditorScriptRegion rg = s.scriptRegions.get(ri);
+      String rid = rg.id == null ? "" : trim(rg.id);
+      if (rid.length() <= 0) {
+        r.errors.add("Script region #" + (ri + 1) + " missing id.");
+      } else if (regionIds.contains(rid)) {
+        r.errors.add("Script region id duplicated: " + rid);
+      } else {
+        regionIds.add(rid);
+      }
+      if (rg.w <= 0 || rg.h <= 0) {
+        r.errors.add("Script region " + safeId(rid, ri) + " invalid size.");
+      }
+      if (rg.x < 0 || rg.y < 0 || rg.x + rg.w > s.mapWidth || rg.y + rg.h > s.mapHeight) {
+        r.errors.add("Script region " + safeId(rid, ri) + " out of map bounds.");
+      }
+    }
     ArrayList<String> triggerIds = new ArrayList<String>();
-    String[] condAllowed = new String[] { "timeElapsed", "resourceAtLeast", "unitCountCmp", "buildingExists", "switchIs" };
+    String[] condAllowed = new String[] { "timeElapsed", "resourceAtLeast", "unitCountCmp", "buildingExists", "switchIs", "unitEnterRegion", "unitStayRegion", "unitExitRegion" };
     String[] actAllowed = new String[] { "spawnUnit", "grantResource", "setSwitch", "showMessage", "issueAttackWave", "winOrLose" };
     for (int ti = 0; ti < s.scriptTriggers.size(); ti++) {
       EditorScriptTrigger t = s.scriptTriggers.get(ti);
@@ -116,6 +134,18 @@ class EditorValidation {
         String type = c == null || c.data == null ? "" : c.data.getString("type", "");
         if (!inSet(type, condAllowed)) {
           r.errors.add("Script condition unsupported: " + type + " in " + tid);
+        } else if ("unitEnterRegion".equals(type) || "unitStayRegion".equals(type) || "unitExitRegion".equals(type)) {
+          String rid = c.data.getString("regionId", "");
+          if (!regionIds.contains(rid)) {
+            r.errors.add("Trigger " + safeId(tid, ti) + ": condition references missing regionId " + rid);
+          }
+          String faction = c.data.getString("faction", "both");
+          if (!inSet(faction, new String[] {"player", "enemy", "both"})) {
+            r.errors.add("Trigger " + safeId(tid, ti) + ": region condition invalid faction " + faction);
+          }
+          if ("unitStayRegion".equals(type) && c.data.getFloat("seconds", 0) <= 0) {
+            r.errors.add("Trigger " + safeId(tid, ti) + ": unitStayRegion.seconds must be > 0.");
+          }
         }
       }
       for (int ai = 0; ai < t.actions.size(); ai++) {

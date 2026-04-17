@@ -218,6 +218,20 @@ class EditorIO {
       }
       root.setJSONArray("scriptTriggers", triggers);
     }
+    if (s.scriptRegions.size() > 0) {
+      JSONArray regions = new JSONArray();
+      for (EditorScriptRegion r : s.scriptRegions) {
+        JSONObject ro = new JSONObject();
+        ro.setString("id", r.id == null ? "" : r.id);
+        ro.setString("label", r.label == null ? "" : r.label);
+        ro.setInt("x", r.x);
+        ro.setInt("y", r.y);
+        ro.setInt("w", max(1, r.w));
+        ro.setInt("h", max(1, r.h));
+        regions.append(ro);
+      }
+      root.setJSONArray("scriptRegions", regions);
+    }
     return root;
   }
 
@@ -326,6 +340,7 @@ class EditorIO {
     }
     s.scriptBundle = "";
     s.scriptBundles.clear();
+    s.scriptRegions.clear();
     JSONArray bundleArr = root.getJSONArray("scriptBundles");
     if (bundleArr != null) {
       for (int bi = 0; bi < bundleArr.size(); bi++) {
@@ -377,6 +392,21 @@ class EditorIO {
           }
         }
         s.scriptTriggers.add(t);
+      }
+    }
+    JSONArray regionArr = root.getJSONArray("scriptRegions");
+    if (regionArr != null) {
+      for (int ri = 0; ri < regionArr.size(); ri++) {
+        JSONObject ro = regionArr.getJSONObject(ri);
+        if (ro == null) continue;
+        EditorScriptRegion rg = new EditorScriptRegion();
+        rg.id = ro.getString("id", "region_" + (ri + 1));
+        rg.label = ro.getString("label", "");
+        rg.x = ro.getInt("x", 0);
+        rg.y = ro.getInt("y", 0);
+        rg.w = max(1, ro.getInt("w", 1));
+        rg.h = max(1, ro.getInt("h", 1));
+        s.scriptRegions.add(rg);
       }
     }
   }

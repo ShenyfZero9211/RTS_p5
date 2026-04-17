@@ -211,12 +211,117 @@ class TriggerRule {
   JSONArray actions;
 }
 
+class ScriptRegionDef {
+  String id = "";
+  int x = 0;
+  int y = 0;
+  int w = 1;
+  int h = 1;
+}
+
+class ScriptRegionEvalContext {
+  HashMap<String, ScriptRegionDef> regionsById = new HashMap<String, ScriptRegionDef>();
+  ArrayList<String> enteredKeys = new ArrayList<String>();
+  ArrayList<String> exitedKeys = new ArrayList<String>();
+  HashMap<String, Float> staySecondsByKey = new HashMap<String, Float>();
+
+  void reset() {
+    regionsById.clear();
+    enteredKeys.clear();
+    exitedKeys.clear();
+    staySecondsByKey.clear();
+  }
+
+  String eventKey(String regionId, Unit u) {
+    return regionId + "#" + System.identityHashCode(u);
+  }
+
+  boolean factionMatches(String mode, Unit u) {
+    String m = mode == null ? "both" : trim(mode).toLowerCase();
+    if ("both".equals(m)) return true;
+    if ("player".equals(m)) return u.faction == Faction.PLAYER;
+    if ("enemy".equals(m)) return u.faction == Faction.ENEMY;
+    return true;
+  }
+}
+
+class ScriptRegionTracker {
+  ScriptRegionEvalContext ctx = new ScriptRegionEvalContext();
+  ArrayList<String> prevInsideKeys = new ArrayList<String>();
+
+  void clear() {
+    ctx.reset();
+    prevInsideKeys.clear();
+  }
+
+  void loadRegionsFromMap(JSONObject mapRoot) {
+    ctx.reset();
+    prevInsideKeys.clear();
+    if (mapRoot == null) return;
+    JSONArray arr = mapRoot.getJSONArray("scriptRegions");
+    if (arr == null) return;
+    for (int i = 0; i < arr.size(); i++) {
+      JSONObject o = arr.getJSONObject(i);
+      if (o == null) continue;
+      ScriptRegionDef d = new ScriptRegionDef();
+      d.id = trim(o.getString("id", ""));
+      d.x = o.getInt("x", 0);
+      d.y = o.getInt("y", 0);
+      d.w = max(1, o.getInt("w", 1));
+      d.h = max(1, o.getInt("h", 1));
+      if (d.id.length() <= 0) continue;
+      ctx.regionsById.put(d.id, d);
+    }
+  }
+
+  void update(GameState gs, float dtSec) {
+    ctx.enteredKeys.clear();
+    ctx.exitedKeys.clear();
+    if (gs == null || gs.map == null || ctx.regionsById.size() <= 0) return;
+    ArrayList<String> currentInsideKeys = new ArrayList<String>();
+    for (Unit u : gs.units) {
+      if (u == null || u.hp <= 0) continue;
+      int tx = (int)floor(u.pos.x / gs.map.tileSize);
+      int ty = (int)floor(u.pos.y / gs.map.tileSize);
+      for (ScriptRegionDef d : ctx.regionsById.values()) {
+        boolean inside = tx >= d.x && ty >= d.y && tx < d.x + d.w && ty < d.y + d.h;
+        String key = ctx.eventKey(d.id, u);
+        if (inside) {
+          if (!currentInsideKeys.contains(key)) currentInsideKeys.add(key);
+          if (!prevInsideKeys.contains(key)) {
+            if (!ctx.enteredKeys.contains(key)) ctx.enteredKeys.add(key);
+            ctx.staySecondsByKey.put(key, 0.0);
+          } else {
+            float s = ctx.staySecondsByKey.containsKey(key) ? ctx.staySecondsByKey.get(key) : 0.0;
+            ctx.staySecondsByKey.put(key, s + max(0, dtSec));
+          }
+        } else if (prevInsideKeys.contains(key)) {
+          if (!ctx.exitedKeys.contains(key)) ctx.exitedKeys.add(key);
+          ctx.staySecondsByKey.remove(key);
+        }
+      }
+    }
+    ArrayList<String> removeKeys = new ArrayList<String>();
+    for (String key : ctx.staySecondsByKey.keySet()) {
+      if (!currentInsideKeys.contains(key)) removeKeys.add(key);
+    }
+    for (String key : removeKeys) ctx.staySecondsByKey.remove(key);
+    prevInsideKeys = currentInsideKeys;
+  }
+}
+
 class TriggerEngine {
   ArrayList<TriggerRule> rules = new ArrayList<TriggerRule>();
   int maxActionsPerTick = 16;
+  ScriptRegionEvalContext regionCtx;
 
   void clear() {
     rules.clear();
+    regionCtx = null;
+  }
+
+  void setRegionContext(ScriptRegionEvalContext ctx) {
+    regionCtx = ctx;
   }
 
   void loadFromJson(JSONObject root) {
@@ -326,6 +431,24 @@ class TriggerEngine {
       String key = c.getString("key", "");
       boolean val = c.getBoolean("value", true);
       return bb.readSwitch(key) == val;
+    }
+    if ("unitenterregion".equals(type) || "unitexitregion".equals(type) || "unitstayregion".equals(type)) {
+      if (regionCtx == null || gs == null) return false;
+      String regionId = trim(c.getString("regionId", ""));
+      String faction = c.getString("faction", "both");
+      if (regionId.length() <= 0 || !regionCtx.regionsById.containsKey(regionId)) return false;
+      float staySecNeed = max(0, c.getFloat("seconds", 0));
+      for (Unit u : gs.units) {
+        if (u == null || u.hp <= 0 || !regionCtx.factionMatches(faction, u)) continue;
+        String key = regionCtx.eventKey(regionId, u);
+        if ("unitenterregion".equals(type) && regionCtx.enteredKeys.contains(key)) return true;
+        if ("unitexitregion".equals(type) && regionCtx.exitedKeys.contains(key)) return true;
+        if ("unitstayregion".equals(type)) {
+          float cur = regionCtx.staySecondsByKey.containsKey(key) ? regionCtx.staySecondsByKey.get(key) : -1;
+          if (cur >= staySecNeed) return true;
+        }
+      }
+      return false;
     }
     return false;
   }
@@ -533,6 +656,7 @@ class ScriptRuntime {
   GameActionBus actionBus = new GameActionBus();
   TriggerEngine triggerEngine = new TriggerEngine();
   AIScriptEngine aiEngine = new AIScriptEngine();
+  ScriptRegionTracker regionTracker = new ScriptRegionTracker();
   String lastError = "";
 
   void reset() {
@@ -544,6 +668,7 @@ class ScriptRuntime {
     blackboard.reset();
     triggerEngine.clear();
     aiEngine.clear();
+    regionTracker.clear();
   }
 
   void resetForNewGame(GameState gs, JSONObject mapRoot) {
@@ -571,6 +696,8 @@ class ScriptRuntime {
       return;
     }
     try {
+      regionTracker.loadRegionsFromMap(mapRoot);
+      triggerEngine.setRegionContext(regionTracker.ctx);
       JSONObject mergedTriggerRoot = new JSONObject();
       JSONArray mergedTriggers = new JSONArray();
       JSONArray localTriggerArr = mapRoot.getJSONArray("scriptTriggers");
@@ -633,6 +760,7 @@ class ScriptRuntime {
     long startNs = System.nanoTime();
     blackboard.beginTick();
     clock.advance(dt);
+    regionTracker.update(gs, dt);
     triggerEngine.tick(gs, clock, blackboard, actionBus);
     aiEngine.tick(dt, gs, clock, blackboard, actionBus, triggerEngine);
     float spent = (System.nanoTime() - startNs) / 1000000.0;

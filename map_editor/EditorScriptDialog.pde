@@ -7,7 +7,9 @@ class EditorScriptDialog {
   int selectedCondition = -1;
   int selectedAction = -1;
   int selectedBundle = -1;
+  int selectedRegion = -1;
   int spawnUnitEditField = 0;
+  boolean regionDrawMode = false;
   boolean bundleEditMode = false;
   String editingBundlePath = "";
   String editingBundleName = "";
@@ -20,7 +22,8 @@ class EditorScriptDialog {
   boolean actionTypePickerOpen = false;
 
   final String[] condTypes = new String[] {
-    "timeElapsed", "resourceAtLeast", "unitCountCmp", "buildingExists", "switchIs"
+    "timeElapsed", "resourceAtLeast", "unitCountCmp", "buildingExists", "switchIs",
+    "unitEnterRegion", "unitStayRegion", "unitExitRegion"
   };
   final String[] actionTypes = new String[] {
     "spawnUnit", "grantResource", "setSwitch", "showMessage", "issueAttackWave", "winOrLose"
@@ -35,6 +38,7 @@ class EditorScriptDialog {
     visible = true;
     if (selectedTrigger < 0 && s.scriptTriggers.size() > 0) selectedTrigger = 0;
     if (selectedBundle < 0 && s.scriptBundles.size() > 0) selectedBundle = 0;
+    if (s.selectedScriptRegion >= 0) selectedRegion = s.selectedScriptRegion;
     clampSelection();
   }
 
@@ -48,6 +52,8 @@ class EditorScriptDialog {
     bundleEditTriggers.clear();
     bundleEditDirty = false;
     bundleExitArmed = false;
+    regionDrawMode = false;
+    if (ui != null) ui.setRegionDrawMode(false);
   }
 
   void toggle() {
@@ -71,6 +77,9 @@ class EditorScriptDialog {
     }
     if (s.scriptBundles.size() <= 0) selectedBundle = -1;
     else selectedBundle = constrain(selectedBundle, 0, s.scriptBundles.size() - 1);
+    if (s.scriptRegions.size() <= 0) selectedRegion = -1;
+    else selectedRegion = constrain(selectedRegion, 0, s.scriptRegions.size() - 1);
+    s.selectedScriptRegion = selectedRegion;
   }
 
   EditorScriptTrigger activeTrigger() {
@@ -135,6 +144,9 @@ class EditorScriptDialog {
     if ("unitCountCmp".equals(type)) return c.data.getString("faction", "enemy") + " " + c.data.getString("unit", "rifleman") + " " + c.data.getString("op", ">=") + " " + c.data.getInt("value", 0);
     if ("buildingExists".equals(type)) return c.data.getString("faction", "enemy") + " " + c.data.getString("building", "base");
     if ("switchIs".equals(type)) return c.data.getString("key", "flag") + "=" + c.data.getBoolean("value", true);
+    if ("unitEnterRegion".equals(type)) return "enter " + c.data.getString("regionId", defaultRegionId()) + " f=" + c.data.getString("faction", "both");
+    if ("unitStayRegion".equals(type)) return "stay " + c.data.getString("regionId", defaultRegionId()) + " " + nf(c.data.getFloat("seconds", 1), 1, 1) + "s f=" + c.data.getString("faction", "both");
+    if ("unitExitRegion".equals(type)) return "exit " + c.data.getString("regionId", defaultRegionId()) + " f=" + c.data.getString("faction", "both");
     return type;
   }
 
@@ -182,7 +194,22 @@ class EditorScriptDialog {
     } else if ("switchIs".equals(type)) {
       c.data.setString("key", "flag");
       c.data.setBoolean("value", true);
+    } else if ("unitEnterRegion".equals(type) || "unitExitRegion".equals(type)) {
+      c.data.setString("regionId", defaultRegionId());
+      c.data.setString("faction", "both");
+    } else if ("unitStayRegion".equals(type)) {
+      c.data.setString("regionId", defaultRegionId());
+      c.data.setString("faction", "both");
+      c.data.setFloat("seconds", 3.0);
     }
+  }
+
+  String defaultRegionId() {
+    if (selectedRegion >= 0 && selectedRegion < s.scriptRegions.size()) {
+      return s.scriptRegions.get(selectedRegion).id;
+    }
+    if (s.scriptRegions.size() > 0) return s.scriptRegions.get(0).id;
+    return "region_1";
   }
 
   void resetActionDefaults(EditorScriptAction a, String type) {
@@ -239,6 +266,7 @@ class EditorScriptDialog {
     text("[ESC] Close", x + w - 110, y + 14);
     drawBtn(x + 360, y + 8, 130, 28, activeTab == 0 ? "[Map Triggers]" : "Map Triggers");
     drawBtn(x + 496, y + 8, 130, 28, activeTab == 1 ? "[Bundles]" : "Bundles");
+    drawBtn(x + 632, y + 8, 130, 28, activeTab == 2 ? "[Regions]" : "Regions");
     if (bundleEditMode) {
       drawBtn(x + w - 280, y + 8, 76, 28, "Save");
       drawBtn(x + w - 198, y + 8, 76, 28, "Back");
@@ -260,11 +288,35 @@ class EditorScriptDialog {
       renderConditionPanel(midX, bodyY, midW, bodyH);
       renderActionPanel(rightX, bodyY, rightW, bodyH);
       renderTypePickers(midX, rightX, bodyY, bodyH);
-    } else {
+    } else if (activeTab == 1) {
       panel(leftX, bodyY, w - 20, bodyH, "Bundle Bindings");
       renderBundlePanel(leftX, bodyY, w - 20, bodyH);
+    } else {
+      panel(leftX, bodyY, w - 20, bodyH, "Script Regions");
+      renderRegionPanel(leftX, bodyY, w - 20, bodyH);
     }
     popStyle();
+  }
+
+  void renderRegionPanel(float x, float y, float w, float h) {
+    float btnY = y + h - 34;
+    drawBtn(x + 8, btnY, 52, 24, "+R");
+    drawBtn(x + 64, btnY, 52, 24, "-R");
+    drawBtn(x + 120, btnY, 86, 24, regionDrawMode ? "Draw:ON" : "Draw:OFF");
+    drawBtn(x + 210, btnY, 86, 24, "Rename");
+    float yy = y + 28;
+    for (int i = 0; i < s.scriptRegions.size() && i < 22; i++) {
+      EditorScriptRegion r = s.scriptRegions.get(i);
+      if (i == selectedRegion) {
+        fill(58, 80, 110);
+        rect(x + 6, yy - 2, w - 12, 20, 4);
+      }
+      fill(225);
+      textSize(13);
+      String title = (r.label != null && r.label.length() > 0) ? r.label : r.id;
+      text((i + 1) + ". " + title + "  id=" + r.id + "  rect=(" + r.x + "," + r.y + "," + r.w + "," + r.h + ")", x + 10, yy);
+      yy += 20;
+    }
   }
 
   void renderBundlePanel(float x, float y, float w, float h) {
@@ -424,6 +476,8 @@ class EditorScriptDialog {
     else if ("unitCountCmp".equals(type)) text("value: " + c.data.getInt("value", 0) + "  op:" + c.data.getString("op", ">=") + "  faction:" + c.data.getString("faction", "enemy"), x + 6, y + 2);
     else if ("buildingExists".equals(type)) text("building: " + c.data.getString("building", "base") + "  faction:" + c.data.getString("faction", "enemy"), x + 6, y + 2);
     else if ("switchIs".equals(type)) text("key: " + c.data.getString("key", "flag") + "  value:" + c.data.getBoolean("value", true), x + 6, y + 2);
+    else if ("unitEnterRegion".equals(type) || "unitExitRegion".equals(type)) text("region: " + c.data.getString("regionId", defaultRegionId()) + "  faction:" + c.data.getString("faction", "both"), x + 6, y + 2);
+    else if ("unitStayRegion".equals(type)) text("region: " + c.data.getString("regionId", defaultRegionId()) + " sec:" + nf(c.data.getFloat("seconds", 1), 1, 1) + "  faction:" + c.data.getString("faction", "both"), x + 6, y + 2);
     drawBtn(x + 6, y + 22, 30, 18, "-");
     drawBtn(x + 40, y + 22, 30, 18, "+");
     drawBtn(x + 74, y + 22, 58, 18, condToggleLabel(type));
@@ -485,6 +539,7 @@ class EditorScriptDialog {
     float w = width - 140;
     float h = height - 104;
     if (!hit(x, y, w, h, mx, my)) {
+      if (wantsRegionDraw()) return false;
       if (bundleEditMode && !tryExitBundleEdit()) return true;
       closeDialog();
       return true;
@@ -515,9 +570,16 @@ class EditorScriptDialog {
       activeTab = 1;
       return true;
     }
+    if (hit(x + 632, y + 8, 130, 28, mx, my)) {
+      activeTab = 2;
+      return true;
+    }
 
     if (activeTab == 1) {
       return handleBundleClick(leftX, bodyY, w - 20, bodyH, mx, my);
+    }
+    if (activeTab == 2) {
+      return handleRegionClick(leftX, bodyY, w - 20, bodyH, mx, my);
     }
 
     if (handleTypePickerClick(mx, my, midX, rightX, bodyY, bodyH)) {
@@ -686,6 +748,16 @@ class EditorScriptDialog {
         else if ("unitCountCmp".equals(type)) c.data.setInt("value", max(0, c.data.getInt("value", 0) + sgn));
         else if ("buildingExists".equals(type) && toggleHit) c.data.setString("faction", "player".equals(c.data.getString("faction", "enemy")) ? "enemy" : "player");
         else if ("switchIs".equals(type) && toggleHit) c.data.setBoolean("value", !c.data.getBoolean("value", true));
+        else if ("unitEnterRegion".equals(type) || "unitExitRegion".equals(type)) {
+          if (toggleHit) c.data.setString("faction", cycleFaction(c.data.getString("faction", "both"), 1));
+          else c.data.setString("regionId", cycleRegionId(c.data.getString("regionId", defaultRegionId()), sgn));
+        } else if ("unitStayRegion".equals(type)) {
+          if (toggleHit) {
+            c.data.setString("faction", cycleFaction(c.data.getString("faction", "both"), 1));
+          } else {
+            c.data.setFloat("seconds", max(0.5, c.data.getFloat("seconds", 1) + sgn * 0.5));
+          }
+        }
         changed = true;
         markBundleDirtyIfEditing();
       }
@@ -808,6 +880,107 @@ class EditorScriptDialog {
       return true;
     }
     return true;
+  }
+
+  String cycleFaction(String v, int dir) {
+    String[] arr = new String[] { "player", "enemy", "both" };
+    int idx = 2;
+    for (int i = 0; i < arr.length; i++) if (arr[i].equals(v)) idx = i;
+    idx = (idx + dir + arr.length) % arr.length;
+    return arr[idx];
+  }
+
+  String cycleRegionId(String current, int dir) {
+    if (s.scriptRegions.size() <= 0) return "region_1";
+    int idx = 0;
+    for (int i = 0; i < s.scriptRegions.size(); i++) {
+      if (s.scriptRegions.get(i).id.equals(current)) {
+        idx = i;
+        break;
+      }
+    }
+    idx = (idx + dir + s.scriptRegions.size()) % s.scriptRegions.size();
+    return s.scriptRegions.get(idx).id;
+  }
+
+  boolean handleRegionClick(float x, float y, float w, float h, int mx, int my) {
+    float btnY = y + h - 34;
+    if (hit(x + 8, btnY, 52, 24, mx, my)) {
+      ui.mutationWillHappen();
+      EditorScriptRegion r = new EditorScriptRegion();
+      r.id = "region_" + (s.scriptRegions.size() + 1);
+      r.label = r.id;
+      int cx = max(0, s.mapWidth / 2 - 2);
+      int cy = max(0, s.mapHeight / 2 - 2);
+      r.x = cx;
+      r.y = cy;
+      r.w = max(1, min(4, s.mapWidth - cx));
+      r.h = max(1, min(4, s.mapHeight - cy));
+      s.scriptRegions.add(r);
+      selectedRegion = s.scriptRegions.size() - 1;
+      s.selectedScriptRegion = selectedRegion;
+      return true;
+    }
+    if (hit(x + 64, btnY, 52, 24, mx, my)) {
+      if (selectedRegion >= 0 && selectedRegion < s.scriptRegions.size()) {
+        ui.mutationWillHappen();
+        s.scriptRegions.remove(selectedRegion);
+        clampSelection();
+      }
+      return true;
+    }
+    if (hit(x + 120, btnY, 86, 24, mx, my)) {
+      regionDrawMode = !regionDrawMode;
+      if (ui != null) ui.setRegionDrawMode(regionDrawMode);
+      return true;
+    }
+    if (selectedRegion >= 0 && selectedRegion < s.scriptRegions.size() && hit(x + 210, btnY, 86, 24, mx, my)) {
+      ui.mutationWillHappen();
+      EditorScriptRegion r = s.scriptRegions.get(selectedRegion);
+      r.label = r.id + "_label";
+      return true;
+    }
+    if (mx >= x + 6 && mx <= x + w - 6 && my >= y + 26 && my < y + h - 36) {
+      int idx = (int)((my - (y + 28)) / 20.0);
+      if (idx >= 0 && idx < s.scriptRegions.size()) {
+        selectedRegion = idx;
+        s.selectedScriptRegion = selectedRegion;
+      }
+      return true;
+    }
+    return true;
+  }
+
+  boolean wantsRegionDraw() {
+    return visible && activeTab == 2 && regionDrawMode && selectedRegion >= 0 && selectedRegion < s.scriptRegions.size();
+  }
+
+  void applyDrawnRegionRect(int tx, int ty, int tw, int th) {
+    if (selectedRegion < 0 || selectedRegion >= s.scriptRegions.size()) return;
+    EditorScriptRegion r = s.scriptRegions.get(selectedRegion);
+    r.x = constrain(tx, 0, max(0, s.mapWidth - 1));
+    r.y = constrain(ty, 0, max(0, s.mapHeight - 1));
+    r.w = constrain(tw, 1, s.mapWidth - r.x);
+    r.h = constrain(th, 1, s.mapHeight - r.y);
+    s.normalizeRegionRect(r);
+  }
+
+  void onRegionCreated(int index) {
+    if (index < 0 || index >= s.scriptRegions.size()) return;
+    selectedRegion = index;
+    s.selectedScriptRegion = index;
+    activeTab = 2;
+  }
+
+  void syncRegionSelection(int index) {
+    if (index < 0) {
+      selectedRegion = -1;
+      s.selectedScriptRegion = -1;
+      return;
+    }
+    if (index >= s.scriptRegions.size()) return;
+    selectedRegion = index;
+    s.selectedScriptRegion = index;
   }
 
   void openBundleEditor(EditorScriptBundleBinding b) {

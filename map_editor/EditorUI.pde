@@ -21,6 +21,21 @@ class EditorUI {
   float selCurrWy;
   int lastMouseX = 0;
   int lastMouseY = 0;
+  boolean regionDrawMode = false;
+  boolean draggingRegionRect = false;
+  int regionStartTx = 0;
+  int regionStartTy = 0;
+  int regionEndTx = 0;
+  int regionEndTy = 0;
+  boolean draggingRegionMove = false;
+  boolean draggingRegionResize = false;
+  int activeResizeHandle = -1; // 0..7 (nw,n,ne,e,se,s,sw,w)
+  int dragRegionStartX = 0;
+  int dragRegionStartY = 0;
+  int dragRegionStartW = 1;
+  int dragRegionStartH = 1;
+  int dragMouseStartTx = 0;
+  int dragMouseStartTy = 0;
 
   EditorUI(EditorState state, EditorTools tools, EditorIO io, EditorValidation validator) {
     this.s = state;
@@ -37,6 +52,9 @@ class EditorUI {
   void onMapLoadedOrNew() {
     editHistory.clear();
     mapSelection.clear();
+    s.selectedScriptRegion = -1;
+    s.toolbarRegionDrawMode = false;
+    regionDrawMode = false;
     syncInteractionMode();
   }
 
@@ -122,6 +140,17 @@ class EditorUI {
     s.setStatus(scriptDialog.visible ? "Script dialog opened." : "Script dialog closed.");
   }
 
+  void setRegionDrawMode(boolean on) {
+    regionDrawMode = on;
+    s.toolbarRegionDrawMode = on;
+    if (!on) {
+      draggingRegionRect = false;
+      draggingRegionMove = false;
+      draggingRegionResize = false;
+      activeResizeHandle = -1;
+    }
+  }
+
   String hotkeyHelpBlock() {
     return "Hotkeys: 1/2/3 terrain  E/F/I  M P O  B U V\n"
       + "[ / ] cycle type  +/- brush  Wheel zoom map\n"
@@ -172,8 +201,15 @@ class EditorUI {
       || chromeToolbar.hoverAny(s, mx, my)
       || chromePalette.hoverAny(s, mx, my, vr)
       || onMinimapView;
+    int regionCursor = regionCursorForMouse(mx, my);
     if (draggingMinimapView) {
       cursor(MOVE);
+    } else if (draggingRegionMove || draggingRegionResize) {
+      cursor(CROSS);
+    } else if (regionCursor == 1) {
+      cursor(MOVE);
+    } else if (regionCursor == 2) {
+      cursor(CROSS);
     } else {
       cursor(hand ? HAND : ARROW);
     }
@@ -258,6 +294,10 @@ class EditorUI {
       ellipse(u.worldCX, u.worldCY, s.tileSize * 0.35, s.tileSize * 0.35);
     }
 
+    if (scriptDialog != null) {
+      renderScriptRegionsOnMap();
+    }
+
     renderSelectionHighlights();
 
     if (tools.draggingRectTerrain) {
@@ -267,6 +307,15 @@ class EditorUI {
       int maxY = max(tools.rectStartTy, tools.rectEndTy);
       noFill();
       stroke(255, 230, 120);
+      strokeWeight(2 / s.zoom);
+      rect(minX * s.tileSize, minY * s.tileSize, (maxX - minX + 1) * s.tileSize, (maxY - minY + 1) * s.tileSize);
+    } else if (draggingRegionRect) {
+      int minX = min(regionStartTx, regionEndTx);
+      int maxX = max(regionStartTx, regionEndTx);
+      int minY = min(regionStartTy, regionEndTy);
+      int maxY = max(regionStartTy, regionEndTy);
+      noFill();
+      stroke(255, 215, 90);
       strokeWeight(2 / s.zoom);
       rect(minX * s.tileSize, minY * s.tileSize, (maxX - minX + 1) * s.tileSize, (maxY - minY + 1) * s.tileSize);
     } else if (selectingWorldDrag) {
@@ -288,6 +337,98 @@ class EditorUI {
 
     noClip();
     popMatrix();
+  }
+
+  void renderScriptRegionsOnMap() {
+    if (s.scriptRegions == null || s.scriptRegions.size() <= 0) return;
+    float sw = max(1.3f, 2f / s.zoom);
+    textSize(11 / s.zoom);
+    for (int i = 0; i < s.scriptRegions.size(); i++) {
+      EditorScriptRegion r = s.scriptRegions.get(i);
+      boolean selected = i == s.selectedScriptRegion;
+      if (selected) {
+        fill(255, 215, 90, 35);
+        stroke(255, 220, 120, 220);
+      } else {
+        fill(110, 210, 255, 20);
+        stroke(120, 210, 255, 180);
+      }
+      strokeWeight(sw);
+      rect(r.x * s.tileSize, r.y * s.tileSize, r.w * s.tileSize, r.h * s.tileSize);
+      fill(240);
+      String name = (r.label != null && r.label.length() > 0) ? r.label : r.id;
+      text(name, r.x * s.tileSize + 4, r.y * s.tileSize + 3);
+      if (selected && s.activeTool == EditorToolType.TOOL_SELECT) {
+        renderRegionHandles(r);
+      }
+    }
+    noStroke();
+  }
+
+  void renderRegionHandles(EditorScriptRegion r) {
+    float ts = s.tileSize;
+    float x0 = r.x * ts;
+    float y0 = r.y * ts;
+    float x1 = (r.x + r.w) * ts;
+    float y1 = (r.y + r.h) * ts;
+    float cx = (x0 + x1) * 0.5f;
+    float cy = (y0 + y1) * 0.5f;
+    float hs = max(4, 5 / s.zoom);
+    float[][] pts = new float[][] {
+      {x0, y0}, {cx, y0}, {x1, y0}, {x1, cy},
+      {x1, y1}, {cx, y1}, {x0, y1}, {x0, cy}
+    };
+    noStroke();
+    fill(255, 235, 120, 230);
+    for (int i = 0; i < pts.length; i++) {
+      rect(pts[i][0] - hs, pts[i][1] - hs, hs * 2, hs * 2);
+    }
+  }
+
+  boolean worldPointInRegion(EditorScriptRegion r, float wx, float wy) {
+    float ts = s.tileSize;
+    float x0 = r.x * ts;
+    float y0 = r.y * ts;
+    float x1 = (r.x + r.w) * ts;
+    float y1 = (r.y + r.h) * ts;
+    return wx >= x0 && wx <= x1 && wy >= y0 && wy <= y1;
+  }
+
+  int regionHandleHit(EditorScriptRegion r, float wx, float wy) {
+    float ts = s.tileSize;
+    float x0 = r.x * ts;
+    float y0 = r.y * ts;
+    float x1 = (r.x + r.w) * ts;
+    float y1 = (r.y + r.h) * ts;
+    float cx = (x0 + x1) * 0.5f;
+    float cy = (y0 + y1) * 0.5f;
+    float tol = max(8, 10 / s.zoom);
+    float[][] pts = new float[][] {
+      {x0, y0}, {cx, y0}, {x1, y0}, {x1, cy},
+      {x1, y1}, {cx, y1}, {x0, y1}, {x0, cy}
+    };
+    for (int i = 0; i < pts.length; i++) {
+      if (abs(wx - pts[i][0]) <= tol && abs(wy - pts[i][1]) <= tol) return i;
+    }
+    return -1;
+  }
+
+  int pickRegionAt(float wx, float wy) {
+    for (int i = s.scriptRegions.size() - 1; i >= 0; i--) {
+      if (worldPointInRegion(s.scriptRegions.get(i), wx, wy)) return i;
+    }
+    return -1;
+  }
+
+  int regionCursorForMouse(int mx, int my) {
+    if (!inWorldViewport(mx, my)) return 0;
+    if (s.activeTool != EditorToolType.TOOL_SELECT) return 0;
+    if (s.selectedScriptRegion < 0 || s.selectedScriptRegion >= s.scriptRegions.size()) return 0;
+    PVector w = screenToWorld(mx, my);
+    EditorScriptRegion r = s.scriptRegions.get(s.selectedScriptRegion);
+    if (regionHandleHit(r, w.x, w.y) >= 0) return 2;
+    if (worldPointInRegion(r, w.x, w.y)) return 1;
+    return 0;
   }
 
   void renderSelectionHighlights() {
@@ -528,6 +669,16 @@ class EditorUI {
     if (chromePalette.mousePressed(s, mx, my, button, editHistory)) return;
 
     if (!inWorldViewport(mx, my)) return;
+    boolean wantsDraw = s.toolbarRegionDrawMode || (scriptDialog != null && scriptDialog.visible && scriptDialog.wantsRegionDraw());
+    if (button == LEFT && wantsDraw) {
+      PVector t = screenToTile(mx, my);
+      regionStartTx = constrain((int)t.x, 0, s.mapWidth - 1);
+      regionStartTy = constrain((int)t.y, 0, s.mapHeight - 1);
+      regionEndTx = regionStartTx;
+      regionEndTy = regionStartTy;
+      draggingRegionRect = true;
+      return;
+    }
     if (button == CENTER || (button == LEFT && panModifierKeys())) {
       draggingPan = true;
       lastMouseX = mx;
@@ -537,6 +688,49 @@ class EditorUI {
 
     if (button == LEFT && s.interactionMode == EditorInteractionMode.MODE_SELECT && s.activeTool == EditorToolType.TOOL_SELECT) {
       PVector w = screenToWorld(mx, my);
+      if (s.selectedScriptRegion >= 0 && s.selectedScriptRegion < s.scriptRegions.size()) {
+        EditorScriptRegion selected = s.scriptRegions.get(s.selectedScriptRegion);
+        int selectedHandle = regionHandleHit(selected, w.x, w.y);
+        if (selectedHandle >= 0) {
+          PVector t = screenToTile(mx, my);
+          mutationWillHappen();
+          dragMouseStartTx = (int)t.x;
+          dragMouseStartTy = (int)t.y;
+          dragRegionStartX = selected.x;
+          dragRegionStartY = selected.y;
+          dragRegionStartW = selected.w;
+          dragRegionStartH = selected.h;
+          draggingRegionResize = true;
+          activeResizeHandle = selectedHandle;
+          if (scriptDialog != null) scriptDialog.syncRegionSelection(s.selectedScriptRegion);
+          return;
+        }
+      }
+      int picked = pickRegionAt(w.x, w.y);
+      if (picked >= 0) {
+        s.selectedScriptRegion = picked;
+        if (scriptDialog != null) scriptDialog.syncRegionSelection(picked);
+        EditorScriptRegion r = s.scriptRegions.get(picked);
+        int h = regionHandleHit(r, w.x, w.y);
+        PVector t = screenToTile(mx, my);
+        mutationWillHappen();
+        dragMouseStartTx = (int)t.x;
+        dragMouseStartTy = (int)t.y;
+        dragRegionStartX = r.x;
+        dragRegionStartY = r.y;
+        dragRegionStartW = r.w;
+        dragRegionStartH = r.h;
+        if (h >= 0) {
+          draggingRegionResize = true;
+          activeResizeHandle = h;
+          return;
+        }
+        draggingRegionMove = true;
+        return;
+      } else {
+        s.selectedScriptRegion = -1;
+        if (scriptDialog != null) scriptDialog.syncRegionSelection(-1);
+      }
       selectingWorldDrag = true;
       selStartWx = w.x;
       selStartWy = w.y;
@@ -572,6 +766,41 @@ class EditorUI {
       PVector w = screenToWorld(mx, my);
       selCurrWx = w.x;
       selCurrWy = w.y;
+      return;
+    }
+    if (draggingRegionRect && button == LEFT) {
+      PVector t = screenToTile(mx, my);
+      regionEndTx = constrain((int)t.x, 0, s.mapWidth - 1);
+      regionEndTy = constrain((int)t.y, 0, s.mapHeight - 1);
+      return;
+    }
+    if ((draggingRegionMove || draggingRegionResize) && button == LEFT) {
+      if (s.selectedScriptRegion < 0 || s.selectedScriptRegion >= s.scriptRegions.size()) return;
+      EditorScriptRegion r = s.scriptRegions.get(s.selectedScriptRegion);
+      PVector t = screenToTile(mx, my);
+      int dx = (int)t.x - dragMouseStartTx;
+      int dy = (int)t.y - dragMouseStartTy;
+      if (draggingRegionMove) {
+        r.x = dragRegionStartX + dx;
+        r.y = dragRegionStartY + dy;
+      } else {
+        int x0 = dragRegionStartX;
+        int y0 = dragRegionStartY;
+        int x1 = dragRegionStartX + dragRegionStartW - 1;
+        int y1 = dragRegionStartY + dragRegionStartH - 1;
+        if (activeResizeHandle == 0 || activeResizeHandle == 7 || activeResizeHandle == 6) x0 += dx;
+        if (activeResizeHandle == 2 || activeResizeHandle == 3 || activeResizeHandle == 4) x1 += dx;
+        if (activeResizeHandle == 0 || activeResizeHandle == 1 || activeResizeHandle == 2) y0 += dy;
+        if (activeResizeHandle == 4 || activeResizeHandle == 5 || activeResizeHandle == 6) y1 += dy;
+        int nx = min(x0, x1);
+        int ny = min(y0, y1);
+        r.x = nx;
+        r.y = ny;
+        r.w = abs(x1 - x0) + 1;
+        r.h = abs(y1 - y0) + 1;
+      }
+      s.normalizeRegionRect(r);
+      if (scriptDialog != null) scriptDialog.syncRegionSelection(s.selectedScriptRegion);
       return;
     }
     if (!inWorldViewport(mx, my)) return;
@@ -611,6 +840,33 @@ class EditorUI {
       } else {
         mapSelection.selectBox(s, selStartWx, selStartWy, selCurrWx, selCurrWy, shift);
       }
+      return;
+    }
+    if (draggingRegionRect && button == LEFT) {
+      draggingRegionRect = false;
+      int minX = min(regionStartTx, regionEndTx);
+      int minY = min(regionStartTy, regionEndTy);
+      int tw = max(1, abs(regionEndTx - regionStartTx) + 1);
+      int th = max(1, abs(regionEndTy - regionStartTy) + 1);
+      mutationWillHappen();
+      EditorScriptRegion r = new EditorScriptRegion();
+      r.id = "region_" + (s.scriptRegions.size() + 1);
+      r.label = r.id;
+      r.x = minX;
+      r.y = minY;
+      r.w = tw;
+      r.h = th;
+      s.normalizeRegionRect(r);
+      s.scriptRegions.add(r);
+      s.selectedScriptRegion = s.scriptRegions.size() - 1;
+      if (scriptDialog != null) scriptDialog.onRegionCreated(s.selectedScriptRegion);
+      s.setStatus("Region created: " + r.id);
+      return;
+    }
+    if (draggingRegionMove || draggingRegionResize) {
+      draggingRegionMove = false;
+      draggingRegionResize = false;
+      activeResizeHandle = -1;
       return;
     }
     if (tools.draggingRectTerrain) {

@@ -148,6 +148,26 @@ class EditorScriptBundleBinding {
   }
 }
 
+class EditorScriptRegion {
+  String id = "region_1";
+  String label = "";
+  int x = 0;
+  int y = 0;
+  int w = 4;
+  int h = 4;
+
+  EditorScriptRegion copy() {
+    EditorScriptRegion cp = new EditorScriptRegion();
+    cp.id = id;
+    cp.label = label;
+    cp.x = x;
+    cp.y = y;
+    cp.w = w;
+    cp.h = h;
+    return cp;
+  }
+}
+
 class EditorState {
   int mapWidth = 48;
   int mapHeight = 48;
@@ -164,7 +184,12 @@ class EditorState {
   ArrayList<EditorPlacedUnit> initialUnits = new ArrayList<EditorPlacedUnit>();
   String scriptBundle = "";
   ArrayList<EditorScriptBundleBinding> scriptBundles = new ArrayList<EditorScriptBundleBinding>();
+  ArrayList<EditorScriptRegion> scriptRegions = new ArrayList<EditorScriptRegion>();
   ArrayList<EditorScriptTrigger> scriptTriggers = new ArrayList<EditorScriptTrigger>();
+  /** Shared selected region index between world view and script dialog. */
+  int selectedScriptRegion = -1;
+  /** Toolbar-driven region creation mode. */
+  boolean toolbarRegionDrawMode = false;
 
   HashMap<String, int[]> buildingSizeById = new HashMap<String, int[]>();
   HashMap<String, Float> unitRadiusById = new HashMap<String, Float>();
@@ -227,7 +252,10 @@ class EditorState {
     initialUnits.clear();
     scriptBundle = "";
     scriptBundles.clear();
+    scriptRegions.clear();
     scriptTriggers.clear();
+    selectedScriptRegion = -1;
+    toolbarRegionDrawMode = false;
     selectedObjectType = "";
     selectedObjectIndex = -1;
     placementFaction = "player";
@@ -381,5 +409,13 @@ class EditorState {
   String activeStatus() {
     if (millis() > statusUntilMillis) return "";
     return statusMessage;
+  }
+
+  void normalizeRegionRect(EditorScriptRegion r) {
+    if (r == null) return;
+    r.x = constrain(r.x, 0, max(0, mapWidth - 1));
+    r.y = constrain(r.y, 0, max(0, mapHeight - 1));
+    r.w = constrain(r.w, 1, max(1, mapWidth - r.x));
+    r.h = constrain(r.h, 1, max(1, mapHeight - r.y));
   }
 }

@@ -85,9 +85,20 @@ class EditorToolbar {
   boolean hoverAny(EditorState s, int mx, int my) {
     if (!contains(mx, my)) return false;
     if (hoverToolIndex(s, mx, my) >= 0) return true;
+    if (hoverRegionButton(s, mx, my)) return true;
     if (hoverBrushPlusMinus(s, mx, my)) return true;
     if (hoverFaction(mx, my, s)) return true;
     return false;
+  }
+
+  int regionButtonY(EditorState s) {
+    int vis = visibleToolCount(s);
+    return toolsTopY() + vis * (BTN_H + BTN_GAP) + 4;
+  }
+
+  boolean hoverRegionButton(EditorState s, int mx, int my) {
+    int ry = regionButtonY(s);
+    return mx >= PAD && mx < W - PAD && my >= ry && my < ry + BTN_H;
   }
 
   int hoverToolIndex(EditorState s, int mx, int my) {
@@ -174,6 +185,18 @@ class EditorToolbar {
       y += BTN_H + BTN_GAP;
     }
 
+    int ry = regionButtonY(s);
+    boolean rHov = hoverRegionButton(s, mx, my);
+    if (s.toolbarRegionDrawMode) fill(75, 112, 72);
+    else if (rHov) fill(50, 68, 88);
+    else fill(38, 48, 62);
+    rect(PAD, ry, W - PAD * 2, BTN_H, 4);
+    fill(235);
+    textSize(12);
+    textAlign(LEFT, CENTER);
+    text(s.toolbarRegionDrawMode ? "Region*" : "Region", PAD + 6, ry + BTN_H * 0.5f);
+    textAlign(LEFT, TOP);
+
     renderBrushPreview(s, mx, my);
 
     int by = brushMinusY(s);
@@ -219,7 +242,15 @@ class EditorToolbar {
     int ti = hoverToolIndex(s, mx, my);
     if (ti >= 0) {
       s.activeTool = toolOrder[ti];
+      s.toolbarRegionDrawMode = false;
       s.setStatus("Tool: " + toolLabels[ti]);
+      return true;
+    }
+
+    if (hoverRegionButton(s, mx, my)) {
+      s.activeTool = EditorToolType.TOOL_SELECT;
+      s.toolbarRegionDrawMode = !s.toolbarRegionDrawMode;
+      s.setStatus(s.toolbarRegionDrawMode ? "Region draw mode ON" : "Region draw mode OFF");
       return true;
     }
 

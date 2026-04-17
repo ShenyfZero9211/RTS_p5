@@ -14,6 +14,7 @@ class EditorMapSnapshot {
   ArrayList<EditorPlacedUnit> units = new ArrayList<EditorPlacedUnit>();
   String scriptBundle = "";
   ArrayList<EditorScriptBundleBinding> scriptBundles = new ArrayList<EditorScriptBundleBinding>();
+  ArrayList<EditorScriptRegion> scriptRegions = new ArrayList<EditorScriptRegion>();
   ArrayList<EditorScriptTrigger> scriptTriggers = new ArrayList<EditorScriptTrigger>();
 
   /** Processing sketch inner classes cannot use static factory methods; use constructor. */
@@ -45,6 +46,9 @@ class EditorMapSnapshot {
     scriptBundles.clear();
     for (EditorScriptBundleBinding b : s.scriptBundles) {
       scriptBundles.add(b.copy());
+    }
+    for (EditorScriptRegion r : s.scriptRegions) {
+      scriptRegions.add(r.copy());
     }
     for (EditorScriptTrigger t : s.scriptTriggers) {
       scriptTriggers.add(t.copy());
@@ -83,6 +87,10 @@ class EditorMapSnapshot {
     s.scriptBundles.clear();
     for (EditorScriptBundleBinding b : scriptBundles) {
       s.scriptBundles.add(b.copy());
+    }
+    s.scriptRegions.clear();
+    for (EditorScriptRegion r : scriptRegions) {
+      s.scriptRegions.add(r.copy());
     }
     s.scriptTriggers.clear();
     for (EditorScriptTrigger t : scriptTriggers) {
